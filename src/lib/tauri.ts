@@ -1,0 +1,195 @@
+import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import type {
+    AnalysisResult,
+    DownloadOptions,
+    DownloadProgress,
+    DownloadHistoryItem,
+} from "@/types";
+
+// ── Types matching the Rust structs (snake_case from Rust → camelCase in JS) ──
+
+interface RustVideoInfo {
+    title: string;
+    thumbnail_url: string;
+    duration: string;
+    author: string;
+    url: string;
+    is_playlist: boolean;
+    playlist_count: number | null;
+    video_formats: RustVideoFormat[];
+    audio_formats: RustAudioFormat[];
+    entries: RustPlaylistItem[] | null;
+}
+
+interface RustPlaylistItem {
+    title: string;
+    url: string;
+    thumbnail_url: string;
+    duration: string;
+}
+
+interface RustVideoFormat {
+    format_id: string;
+    label: string;
+    quality: string;
+    ext: string;
+    filesize: number | null;
+}
+
+interface RustAudioFormat {
+    format_id: string;
+    label: string;
+    quality: string;
+    ext: string;
+    bitrate: number | null;
+}
+
+interface RustDownloadProgress {
+    download_id: string;
+    percent: number;
+    speed: string;
+    eta: string;
+    filename: string;
+    status: string;
+}
+
+interface RustHistoryItem {
+    id: string;
+    url: string;
+    title: string;
+    format: string;
+    outputPath?: string;   // Rust serde rename_all = "camelCase"
+    timestamp: string;
+}
+
+export interface AppSettings {
+    default_output_path: string;
+    default_format: string;
+    embed_thumbnail: boolean;
+}
+
+// ── Map Rust response to our frontend types ──
+
+function mapVideoInfo(r: RustVideoInfo): AnalysisResult {
+    return {
+        title: r.title,
+        thumbnailUrl: r.thumbnail_url,
+        duration: r.duration,
+        author: r.author,
+        url: r.url,
+        isPlaylist: r.is_playlist,
+        playlistCount: r.playlist_count ?? undefined,
+        videoFormats: r.video_formats.map((f) => ({
+            formatId: f.format_id,
+            label: f.label,
+            quality: f.quality,
+            ext: f.ext,
+            filesize: f.filesize ?? undefined,
+        })),
+        audioFormats: r.audio_formats.map((f) => ({
+            formatId: f.format_id,
+            label: f.label,
+            quality: f.quality,
+            ext: f.ext,
+            bitrate: f.bitrate ?? undefined,
+        })),
+        entries: r.entries?.map((e) => ({
+            title: e.title,
+            url: e.url,
+            thumbnailUrl: e.thumbnail_url,
+            duration: e.duration,
+        })),
+    };
+}
+
+// ── Tauri command wrappers ──
+
+/** Fetch video info and available formats for a URL */
+export async function getVideoInfo(url: string): Promise<AnalysisResult> {
+    const raw = await invoke<RustVideoInfo>("get_video_info", { url });
+    return mapVideoInfo(raw);
+}
+
+/** Start a download. Emits download://progress events. */
+export async function startDownload(
+    downloadId: string,
+    options: DownloadOptions
+): Promise<void> {
+    await invoke<void>("start_download", {
+        downloadId,
+        opts: {
+            title: options.title,
+            url: options.url,
+            format_id: options.formatId,
+            is_audio: options.isAudio,
+            output_path: options.options.outputPath,
+            custom_filename: options.options.customFilename,
+            output_format: options.options.outputFormat,
+            embed_thumbnail: options.options.embedThumbnail,
+            download_subtitles: options.options.downloadSubtitles,
+            subtitle_language: options.options.subtitleLanguage,
+        },
+    });
+}
+
+/** Listen to real-time download progress events */
+export function onDownloadProgress(
+    callback: (progress: DownloadProgress) => void
+): Promise<UnlistenFn> {
+    return listen<RustDownloadProgress>("download://progress", (event) => {
+        const p = event.payload;
+        callback({
+            downloadId: p.download_id,
+            percent: p.percent,
+            speed: p.speed,
+            eta: p.eta,
+            filename: p.filename,
+            status: p.status,
+        });
+    });
+}
+
+/** Get download history */
+export async function getDownloadHistory(): Promise<DownloadHistoryItem[]> {
+    const raw = await invoke<RustHistoryItem[]>("get_download_history");
+    return raw.map((r) => ({
+        id: r.id,
+        title: r.title,
+        url: r.url,
+        format: r.format,
+        outputPath: r.outputPath,
+        timestamp: r.timestamp,
+    }));
+}
+
+/** Clear download history */
+export async function cancelDownload(downloadId: string): Promise<void> {
+    await invoke('cancel_download', { downloadId });
+}
+
+export async function clearDownloadHistory(): Promise<void> {
+    await invoke<void>("clear_download_history");
+}
+
+export async function updateYtDlp(): Promise<string> {
+    return await invoke('update_yt_dlp');
+}
+
+/** Get saved settings */
+export async function getSettings(): Promise<AppSettings> {
+    return await invoke<AppSettings>("get_settings");
+}
+
+/** Save settings */
+export async function saveSettings(settings: AppSettings): Promise<void> {
+    await invoke<void>("save_settings", { settings });
+}
+
+/** Open a folder picker dialog and return the selected path */
+export async function openFolderDialog(): Promise<string | null> {
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const result = await open({ directory: true, multiple: false });
+    if (typeof result === "string") return result;
+    return null;
+}
