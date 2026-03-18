@@ -1,0 +1,109 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 280 40% 98%;
+    /* Soft Fountain Purple base */
+    --foreground: 220 40% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 40% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 40% 10%;
+    --primary: 280 80% 60%;
+    /* Fountain Purple-Pink */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 200 80% 90%;
+    /* Fountain Blue */
+    --secondary-foreground: 220 40% 10%;
+    --muted: 220 20% 95%;
+    --muted-foreground: 220 10% 40%;
+    --accent: 320 80% 90%;
+    /* Fountain Pink */
+    --accent-foreground: 220 40% 10%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 280 30% 90%;
+    --input: 280 30% 90%;
+    --ring: 280 80% 60%;
+    --radius: 1.5rem;
+  }
+
+  .dark {
+    --background: 220 40% 2%;
+    /* Absolute Black/Navy base */
+    --foreground: 160 20% 98%;
+    --card: 222 47% 4%;
+    /* Deep Navy Card */
+    --card-foreground: 160 20% 98%;
+    --popover: 222 47% 4%;
+    --popover-foreground: 160 20% 98%;
+    --primary: 160 84% 39%;
+    /* Deep Sea Green (Emerald) */
+    --primary-foreground: 222 47% 4%;
+    --secondary: 222 47% 11%;
+    /* Navy blue accent */
+    --secondary-foreground: 160 20% 98%;
+    --muted: 222 47% 8%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 160 84% 20%;
+    /* Darker Green accent */
+    --accent-foreground: 160 20% 98%;
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 160 20% 98%;
+    --border: 222 47% 12%;
+    --input: 222 47% 12%;
+    --ring: 160 84% 39%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased selection:bg-primary/10;
+  }
+}
+
+@layer utilities {
+  .animate-premium-in {
+    animation: premium-in 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .animate-pulse-soft {
+    animation: pulse-soft 3s ease-in-out infinite;
+  }
+
+  .glass-card {
+    @apply bg-card/40 backdrop-blur-xl border border-white/10 dark:border-white/5;
+  }
+}
+
+@keyframes premium-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes pulse-soft {
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.8;
+    transform: scale(1.01);
+  }
+}
