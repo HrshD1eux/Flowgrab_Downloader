@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import type {
     AnalysisResult,
     DownloadOptions,
@@ -196,10 +197,14 @@ export async function saveSettings(settings: AppSettings): Promise<void> {
 
 /** Open a folder picker dialog and return the selected path */
 export async function openFolderDialog(): Promise<string | null> {
-    const { open } = await import("@tauri-apps/plugin-dialog");
-    const result = await open({ directory: true, multiple: false });
-    if (typeof result === "string") return result;
-    return null;
+    try {
+        const result = await openDialog({ directory: true, multiple: false });
+        if (typeof result === "string") return result;
+        return null;
+    } catch (e) {
+        console.warn("Folder dialog failed or was cancelled:", e);
+        return null;
+    }
 }
 
 export interface AppUpdateInfo {

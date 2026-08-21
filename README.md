@@ -1,111 +1,93 @@
 # 🚀 Video Downloader
 
-A premium, high-performance desktop application for downloading videos and audio from virtually anywhere, powered by **Tauri**, **Next.js**, and **yt-dlp**.
+A modern, high-performance, privacy-first desktop application for downloading videos and audio from virtually any web platform, built with **Tauri v2**, **Next.js 15**, **React 19**, and **yt-dlp**.
 
-![Luxury UI](https://img.shields.io/badge/UI-Luxury_Glassmorphism-f472b6?style=for-the-badge)
-![Tech](https://img.shields.io/badge/Engine-yt--dlp-22d3ee?style=for-the-badge)
-![Platform](https://img.shields.io/badge/Platform-Windows-0284c7?style=for-the-badge)
+[![Platform](https://img.shields.io/badge/Platform-Windows-0284c7?style=flat-square)](https://github.com/HrshD1eux/Video_Downloader)
+[![Engine](https://img.shields.io/badge/Core-yt--dlp-22d3ee?style=flat-square)](https://github.com/yt-dlp/yt-dlp)
+[![Framework](https://img.shields.io/badge/Framework-Tauri_v2-24c8db?style=flat-square)](https://tauri.app/)
+[![License](https://img.shields.io/badge/License-MIT-emerald?style=flat-square)](LICENSE)
 
 ---
 
 ## ✨ Key Features
 
-### 🎨 Stunning Visuals & UX
-*   **💎 Luxury Glassmorphism**: Ultra-soft corners (`rounded-[3rem]`) and backdrop-blur effects for a high-end, modern desktop feel.
-*   **🌊 Deep Sea Dark Theme**: A sophisticated palette of absolute black, deep navy blue, and emerald green accents.
-*   **⛲ Fountain Light Theme**: A vibrant, fluid mix of soft purple, sky blue, and rose pink gradients.
-*   **🛡️ Privacy-First Design**: Automatic autocomplete/autofill disabling for all sensitive input fields.
-*   **✨ Smooth Animations**: Premium entry transitions (`animate-premium-in`) and tactile hover effects.
-*   **🌑 Dynamic Backgrounds**: Floating, pulsing blur accents and a subtle grain texture for depth and premium "printed" aesthetics.
+### 🎬 Universal Video & Audio Support
+* **Complete Resolution Spectrum**: Download at any resolution from **4K Ultra HD (2160p)**, **2K (1440p)**, **1080p Full HD**, **720p HD**, **480p**, down to **360p** and **240p Data Saver**.
+* **Audiophile Codec Options**: Extract high-fidelity audio in **`.opus`** (Best quality-to-size ratio), **`.mp3`** (Universal compatibility, 320kbps), **`.m4a`** (Apple native AAC), **`.flac`** (Lossless studio master), and **`.wav`** (Uncompressed PCM).
+* **Universal Platform Compatibility**: Over 1,000+ supported sites including YouTube, Twitter / X, Instagram, TikTok, Reddit, Facebook, Vimeo, and more.
 
-### 🛠️ Powerful Download Engine
-*   **🌐 Universal Compatibility**: Powered by `yt-dlp`, supporting over 1000+ sites including YouTube, Instagram, Twitter, and more.
-*   **📦 Batch Manager**: Paste multiple URLs at once to analyze and download them in a single session.
-*   **📑 Playlist Intelligence**: Detailed playlist expansion—view all entries, select specific videos, and track per-item progress.
-*   **⚡ Parallel Processing**: High-speed downloads with 16 concurrent fragments per file and multi-video parallel downloading.
-*   **📉 Smart History**: Track your previous downloads with a local, private history log.
+### ⚡ Blazing Performance & Architecture
+* **Single-Pass Extraction**: Fast URL inspection extracting complete video manifests and playlist entries in a single process pass.
+* **Anti-Throttling Engine**: Built-in player client negotiation preventing HTTP 403 Forbidden errors and Cloudflare rate limits.
+* **Controlled Concurrency**: Safe parallel fragment downloads with automatic queue management to protect your connection.
 
-### ⚙️ Advanced Customization
-*   **📂 Custom Output Picker**: Select exactly where your files should go with a native Windows folder picker.
-*   **🏷️ Intelligent Naming**: Custom filename patterns with automatic unique ID appending to prevent file collisions.
-*   **🎬 Professional Metadata**: Auto-embed thumbnails and subtitles (with multi-language selection support).
-*   **🔄 Live Engine Updates**: Stay up-to-date with the latest web platform changes with one-click `yt-dlp` updates.
+### 🎨 Modern, Performance-Focused UI
+* **Minimalist Slate/Zinc Theme**: Clean, distraction-free interface with instant Dark and Light mode switching.
+* **Dedicated Downloads & History Dashboard**: Real-time progress bars, live transfer speed (`MB/s`), time remaining (`ETA`), and individual cancel controls.
+* **Full Settings Persistence**: Set default download directories, preferred video container (`mp4`, `mkv`, `webm`), default audio formats, and auto-thumbnail embedding.
+* **Live Update System**: Check for new application releases on GitHub and update the internal extraction engine (`yt-dlp`) with a single click.
 
 ---
 
-## 🛠️ Detailed Setup Instructions
+## 🛠️ Development & Building
 
-Follow these steps to set up the project locally on your machine.
+### Prerequisites
+* **Node.js (v18+)**
+* **Rust & Cargo (v1.77+)**
+* **Tauri CLI (v2)**:
+  ```bash
+  cargo install tauri-cli --version "^2.0.0"
+  ```
 
-### 1️⃣ Install Required Tools
-Before you begin, ensure you have these installed:
-*   **Node.js (v18+)**: [Download Here](https://nodejs.org/)
-*   **Rust & Cargo**: [Installation Guide](https://www.rust-lang.org/tools/install)
-*   **Git**: [Download Here](https://git-scm.com/)
-*   **Tauri CLI**: Open your terminal and run:
-    ```bash
-    cargo install tauri-cli --version "^2.0.0"
-    ```
-
-### 2️⃣ Clone the Repository
-Open your terminal/command prompt and run:
+### 1. Clone & Install
 ```bash
-git clone https://github.com/yourusername/video-downloader.git
-cd video-downloader
-```
-
-### 3️⃣ Setup External Binaries
-The application depends on `yt-dlp` and `ffmpeg`.
-1.  Navigate to `src-tauri/binaries/`.
-2.  Ensure `yt-dlp.exe` and `ffmpeg.exe` are present in this folder.
-    *   *Note: On Windows, Tauri expects these to be named exactly as configured in `tauri.conf.json`.*
-
-### 4️⃣ Install Dependencies
-From the project root, run:
-```bash
+git clone https://github.com/HrshD1eux/Video_Downloader.git
+cd Video_Downloader
 npm install
 ```
 
-### 5️⃣ Run for Development
-Start the development environment (launches the app window):
+### 2. Run in Development
 ```bash
 cargo tauri dev
 ```
-*The first run will take a few minutes as it compiles all Rust dependencies.*
+
+### 3. Run Automated Tests
+```bash
+# Backend Rust Unit Tests
+cargo test --manifest-path src-tauri/Cargo.toml
+
+# Frontend TypeScript Validation
+npm run typecheck
+```
+
+### 4. Build Production Installer (MSI / EXE)
+```bash
+npm run build
+cargo tauri build
+```
+The output installers will be placed in `src-tauri/target/release/bundle/`.
 
 ---
 
-## 📦 Building the Installer (EXE/MSI)
+## 📂 Architecture Overview
 
-To create a professional standalone installer for Windows, follow these granular steps:
-
-### 🧹 Preparation
-1.  **Clear Old Builds**: Remove any existing build artifacts to ensure a clean slate.
-    ```bash
-    rmdir /s /q src-tauri\target
-    ```
-
-### 🚀 The Build Process
-2.  **Run the Release Command**: This automated script bumps the application version and triggers the full Next.js/Rust production build in one go.
-    ```bash
-    npm run release
-    ```
-    *This process will perform a production build of the frontend and bundle the entire application (with the newly incremented version) into MSI and NSIS installers.*
-
-### ✅ Final Verification
-3.  **Find Your Installers**: Once finished, navigate to the output folders:
-    *   **📦 MSI Installer**: `src-tauri/target/release/bundle/msi/`
-    *   **⚙️ NSIS (EXE) Setup**: `src-tauri/target/release/bundle/nsis/`
+```
+Video_Downloader/
+├── src/                      # Next.js 15 App Router Frontend
+│   ├── app/                  # Layout, globals.css, main page
+│   ├── components/           # UI components, DownloadsManager, SettingsModal, UpdateModal
+│   └── lib/                  # Tauri IPC bindings & GitHub updater client
+├── src-tauri/                # Rust Desktop Backend
+│   ├── src/
+│   │   ├── commands/         # download, video analysis, engine resolver, settings, updates
+│   │   └── lib.rs            # Application state, plugins, tray menu, invoke handler
+│   ├── binaries/             # Bundled yt-dlp & FFmpeg binaries
+│   ├── tauri.conf.json       # Tauri bundle configuration & permissions
+│   └── Cargo.toml            # Rust dependencies & metadata
+└── package.json              # Frontend scripts & dependencies
+```
 
 ---
-
-## 📂 Project Structure
-*   `src/`: **Next.js Frontend** — Where the UI, buttons, and animations live.
-*   `src-tauri/`: **Rust Backend** — Where the fast, secure downloading logic lives.
-*   `src-tauri/binaries/`: **Helper Tools** — Engines that power the video analysis and extraction.
-
-## 🤝 Contributing
-Found a bug or have a suggestion? Open an issue or submit a pull request!
 
 ## 📜 License
-This project is licensed under the MIT License.
+This project is open source and available under the [MIT License](LICENSE).
