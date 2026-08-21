@@ -78,10 +78,23 @@ pub fn build_args(_download_id: &str, opts: &DownloadOptions, ffmpeg_dir: &str) 
         args.push("--audio-format".to_string());
         
         let valid_audio_formats = ["mp3", "m4a", "opus", "flac", "wav", "aac", "vorbis"];
-        let audio_format = if valid_audio_formats.contains(&opts.output_format.to_lowercase().as_str()) {
+        
+        let format_from_id = if let Some(stripped) = opts.format_id.strip_prefix("audio-") {
+            if stripped == "best" {
+                None
+            } else {
+                Some(stripped.to_lowercase())
+            }
+        } else {
+            None
+        };
+
+        let audio_format = if let Some(fmt) = format_from_id.filter(|f| valid_audio_formats.contains(&f.as_str())) {
+            fmt
+        } else if valid_audio_formats.contains(&opts.output_format.to_lowercase().as_str()) {
             opts.output_format.to_lowercase()
         } else {
-            "mp3".to_string()
+            "opus".to_string()
         };
         
         args.push(audio_format);

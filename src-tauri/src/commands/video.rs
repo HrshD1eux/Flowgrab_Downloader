@@ -17,6 +17,7 @@ pub struct AudioFormat {
     pub quality: String,
     pub ext: String,
     pub bitrate: Option<f64>,
+    pub filesize: Option<u64>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -51,6 +52,15 @@ pub fn format_duration(secs: f64) -> String {
         format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
     } else {
         format!("{:02}:{:02}", minutes, seconds)
+    }
+}
+
+/// Calculate estimated bytes based on bitrate in kbps and duration in seconds
+fn estimate_filesize(bitrate_kbps: f64, duration_secs: f64) -> Option<u64> {
+    if duration_secs > 0.0 && bitrate_kbps > 0.0 {
+        Some((((bitrate_kbps * 1000.0) / 8.0) * duration_secs) as u64)
+    } else {
+        None
     }
 }
 
@@ -215,13 +225,18 @@ pub async fn get_video_info(app: AppHandle, url: String) -> Result<VideoInfo, St
                     format!("{} audio", ext.to_uppercase())
                 };
                 let quality = format!("audio-{format_id}");
+                let filesize = f["filesize"].as_u64()
+                    .or_else(|| f["filesize_approx"].as_u64())
+                    .or_else(|| bitrate.and_then(|br| estimate_filesize(br, duration_secs)));
+
                 if !audio_formats.iter().any(|a| a.label == label) {
                     audio_formats.push(AudioFormat {
-                        format_id: format_id.clone(),
+                        format_id: format!("audio-stream-{format_id}"),
                         label,
                         quality,
                         ext: ext.clone(),
                         bitrate,
+                        filesize,
                     });
                 }
             }
@@ -234,7 +249,19 @@ pub async fn get_video_info(app: AppHandle, url: String) -> Result<VideoInfo, St
                     let fps_label = fps.map(|fr| if fr > 30.0 { format!("{}fps", fr as u32) } else { String::new() }).unwrap_or_default();
                     let label = if fps_label.is_empty() { format!("{}p · {}", h, ext.to_uppercase()) } else { format!("{}p{} · {}", h, fps_label, ext.to_uppercase()) };
                     let quality = format!("{h}p");
-                    let filesize = f["filesize"].as_u64().or_else(|| f["filesize_approx"].as_u64());
+                    let default_kbps = match h {
+                        2160.. => 30000.0,
+                        1440.. => 14000.0,
+                        1080.. => 5000.0,
+                        720.. => 2800.0,
+                        480.. => 1400.0,
+                        360.. => 800.0,
+                        _ => 400.0,
+                    };
+                    let filesize = f["filesize"].as_u64()
+                        .or_else(|| f["filesize_approx"].as_u64())
+                        .or_else(|| estimate_filesize(default_kbps + 160.0, duration_secs));
+
                     if !video_formats.iter().any(|v| v.quality == quality) {
                         video_formats.push(VideoFormat { format_id, label, quality, ext, filesize });
                     }
@@ -244,26 +271,26 @@ pub async fn get_video_info(app: AppHandle, url: String) -> Result<VideoInfo, St
     }
 
     // 2. Inject standard high-definition quality presets (4K, 2K, 1080p, 720p, 480p, 360p, 240p)
-    // This guarantees that the user always has all resolution options available!
-    let standard_heights: &[(u64, &str)] = &[
-        (2160, "4K · 2160p (Ultra HD)"),
-        (1440, "2K · 1440p (Quad HD)"),
-        (1080, "1080p (Full HD)"),
-        (720, "720p (HD)"),
-        (480, "480p (Standard)"),
-        (360, "360p (Medium)"),
-        (240, "240p (Data Saver)"),
+    let standard_heights: &[(u64, &str, f64)] = &[
+        (2160, "4K · 2160p (Ultra HD)", 30000.0),
+        (1440, "2K · 1440p (Quad HD)", 14000.0),
+        (1080, "1080p (Full HD)", 5000.0),
+        (720, "720p (HD)", 2800.0),
+        (480, "480p (Standard)", 1400.0),
+        (360, "360p (Medium)", 800.0),
+        (240, "240p (Data Saver)", 400.0),
     ];
 
-    for &(h, label) in standard_heights {
+    for &(h, label, kbps) in standard_heights {
         let quality = format!("{h}p");
         if !video_formats.iter().any(|v| v.quality == quality) {
+            let filesize = estimate_filesize(kbps + 160.0, duration_secs);
             video_formats.push(VideoFormat {
                 format_id: format!("bestvideo[height<={h}]+bestaudio/best[height<={h}]"),
                 label: label.to_string(),
                 quality: quality.clone(),
                 ext: "mp4".to_string(),
-                filesize: None,
+                filesize,
             });
         }
     }
@@ -277,33 +304,38 @@ pub async fn get_video_info(app: AppHandle, url: String) -> Result<VideoInfo, St
         parse(&b.quality).cmp(&parse(&a.quality))
     });
 
+    // Top resolution size for "Best Available"
+    let top_size = video_formats.first().and_then(|v| v.filesize);
+
     // Always prepend "Best Available" at top
     video_formats.insert(0, VideoFormat {
         format_id: "bestvideo+bestaudio/best".to_string(),
         label: "Best Available (Highest Quality)".to_string(),
         quality: "best".to_string(),
         ext: "mp4".to_string(),
-        filesize: None,
+        filesize: top_size,
     });
 
-    // Populate Audio options with top codecs
+    // Populate Audio options with unique format IDs and estimated file sizes
     let audio_presets = [
-        ("bestaudio", "Best Audio (Auto Best Quality)", "audio-best", "mp3", None),
-        ("bestaudio[ext=opus]/bestaudio", "OPUS (Best Quality & Efficiency)", "audio-opus", "opus", Some(160.0)),
-        ("bestaudio", "MP3 320kbps (Universal Device Compatible)", "audio-mp3", "mp3", Some(320.0)),
-        ("bestaudio[ext=m4a]/bestaudio", "M4A / AAC (Apple & High Fidelity)", "audio-m4a", "m4a", Some(256.0)),
-        ("bestaudio", "FLAC (Lossless Studio Master)", "audio-flac", "flac", None),
-        ("bestaudio", "WAV (Uncompressed Studio PCM)", "audio-wav", "wav", None),
+        ("audio-best", "Best Audio (Auto Best Quality)", "audio-best", "mp3", Some(320.0), 320.0),
+        ("audio-opus", "OPUS (Best Quality & Efficiency)", "audio-opus", "opus", Some(160.0), 160.0),
+        ("audio-mp3", "MP3 320kbps (Universal Device Compatible)", "audio-mp3", "mp3", Some(320.0), 320.0),
+        ("audio-m4a", "M4A / AAC (Apple & High Fidelity)", "audio-m4a", "m4a", Some(256.0), 256.0),
+        ("audio-flac", "FLAC (Lossless Studio Master)", "audio-flac", "flac", None, 800.0),
+        ("audio-wav", "WAV (Uncompressed Studio PCM)", "audio-wav", "wav", None, 1411.0),
     ];
 
-    for (fid, label, qual, ext, br) in audio_presets.iter().rev() {
+    for (fid, label, qual, ext, br, est_kbps) in audio_presets.iter().rev() {
         if !audio_formats.iter().any(|a| a.quality == *qual) {
+            let filesize = estimate_filesize(*est_kbps, duration_secs);
             audio_formats.insert(0, AudioFormat {
                 format_id: fid.to_string(),
                 label: label.to_string(),
                 quality: qual.to_string(),
                 ext: ext.to_string(),
                 bitrate: *br,
+                filesize,
             });
         }
     }
@@ -336,5 +368,13 @@ mod tests {
     fn test_format_duration_long() {
         assert_eq!(format_duration(3665.0), "01:01:05");
         assert_eq!(format_duration(7200.0), "02:00:00");
+    }
+
+    #[test]
+    fn test_estimate_filesize() {
+        let size = estimate_filesize(5000.0, 60.0);
+        assert!(size.is_some());
+        // 5000 kbps * 60s / 8 = 37,500,000 bytes (~37.5 MB)
+        assert_eq!(size.unwrap(), 37_500_000);
     }
 }

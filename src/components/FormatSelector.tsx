@@ -13,6 +13,16 @@ interface FormatSelectorProps {
   setSelectedFormat: (format: string | null, isAudio: boolean) => void;
   isDownloading: boolean;
   isAudioSelected?: boolean;
+  defaultAudioFormat?: string;
+  defaultVideoFormat?: string;
+}
+
+function formatBytes(bytes?: number): string | null {
+  if (!bytes || bytes <= 0) return null;
+  if (bytes >= 1024 * 1024 * 1024) {
+    return `~${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+  }
+  return `~${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export default function FormatSelector({
@@ -21,16 +31,27 @@ export default function FormatSelector({
   setSelectedFormat,
   isDownloading,
   isAudioSelected = false,
+  defaultAudioFormat = "opus",
+  defaultVideoFormat = "bestvideo+bestaudio/best",
 }: FormatSelectorProps) {
   const activeTab = isAudioSelected ? "audio" : "video";
 
   const handleTabChange = (val: string) => {
     if (val === "audio") {
-      const defaultAudio = result.audioFormats[0]?.formatId ?? "bestaudio";
-      setSelectedFormat(defaultAudio, true);
+      // Find matching default audio format (e.g. audio-opus)
+      const targetAudioId = `audio-${defaultAudioFormat.toLowerCase()}`;
+      const matched = result.audioFormats.find(
+        (a) => a.formatId === targetAudioId || a.quality === defaultAudioFormat.toLowerCase()
+      );
+      const chosen = matched?.formatId ?? result.audioFormats[0]?.formatId ?? "audio-opus";
+      setSelectedFormat(chosen, true);
     } else {
-      const defaultVideo = result.videoFormats[0]?.formatId ?? "bestvideo+bestaudio/best";
-      setSelectedFormat(defaultVideo, false);
+      // Find matching default video format
+      const matched = result.videoFormats.find(
+        (v) => v.formatId === defaultVideoFormat || v.ext === defaultVideoFormat
+      );
+      const chosen = matched?.formatId ?? result.videoFormats[0]?.formatId ?? "bestvideo+bestaudio/best";
+      setSelectedFormat(chosen, false);
     }
   };
 
@@ -60,40 +81,48 @@ export default function FormatSelector({
           disabled={isDownloading}
           className="grid gap-2 max-h-[320px] overflow-y-auto pr-1 custom-scrollbar"
         >
-          {result.videoFormats.map((format, idx) => (
-            <Label
-              key={format.formatId + format.quality}
-              className={`flex items-center justify-between rounded-xl border p-3 cursor-pointer transition-all ${
-                !isAudioSelected && selectedFormat === format.formatId
-                  ? "border-primary bg-primary/10 shadow-sm"
-                  : "border-border/60 hover:bg-muted/40 hover:border-border"
-              }`}
-            >
-              <div className="flex items-center space-x-3">
-                <RadioGroupItem
-                  value={format.formatId}
-                  id={`video-${format.formatId}-${idx}`}
-                  className="h-4 w-4 text-primary"
-                />
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-foreground">{format.label}</span>
-                  {idx === 0 && (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-primary/15 text-primary border border-primary/20">
-                      <Sparkles className="h-2.5 w-2.5" /> Max
+          {result.videoFormats.map((format, idx) => {
+            const isSelected = !isAudioSelected && selectedFormat === format.formatId;
+            const sizeStr = formatBytes(format.filesize);
+
+            return (
+              <Label
+                key={`video-item-${format.formatId}-${format.quality}-${idx}`}
+                htmlFor={`video-radio-${idx}`}
+                className={`flex items-center justify-between rounded-xl border p-3 cursor-pointer transition-all ${
+                  isSelected
+                    ? "border-primary bg-primary/10 shadow-sm"
+                    : "border-border/60 hover:bg-muted/40 hover:border-border"
+                }`}
+              >
+                <div className="flex items-center space-x-3">
+                  <RadioGroupItem
+                    value={format.formatId}
+                    id={`video-radio-${idx}`}
+                    className="h-4 w-4 text-primary"
+                  />
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-foreground">{format.label}</span>
+                    {idx === 0 && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-primary/15 text-primary border border-primary/20">
+                        <Sparkles className="h-2.5 w-2.5" /> Max
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono">
+                  {sizeStr && (
+                    <span className="text-[11px] font-medium text-foreground/80 bg-muted/60 px-2 py-0.5 rounded border border-border/50">
+                      {sizeStr}
                     </span>
                   )}
+                  <span className="uppercase text-[10px] bg-muted px-2 py-0.5 rounded border border-border">
+                    {format.ext}
+                  </span>
                 </div>
-              </div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono">
-                {format.filesize && (
-                  <span>{(format.filesize / 1_048_576).toFixed(0)} MB</span>
-                )}
-                <span className="uppercase text-[10px] bg-muted px-2 py-0.5 rounded border border-border">
-                  {format.ext}
-                </span>
-              </div>
-            </Label>
-          ))}
+              </Label>
+            );
+          })}
         </RadioGroup>
       </TabsContent>
 
@@ -104,38 +133,50 @@ export default function FormatSelector({
           disabled={isDownloading}
           className="grid gap-2 max-h-[320px] overflow-y-auto pr-1 custom-scrollbar"
         >
-          {result.audioFormats.map((format, idx) => (
-            <Label
-              key={format.formatId + format.quality}
-              className={`flex items-center justify-between rounded-xl border p-3 cursor-pointer transition-all ${
-                isAudioSelected && selectedFormat === format.formatId
-                  ? "border-emerald-500 bg-emerald-500/10 shadow-sm"
-                  : "border-border/60 hover:bg-muted/40 hover:border-border"
-              }`}
-            >
-              <div className="flex items-center space-x-3">
-                <RadioGroupItem
-                  value={format.formatId}
-                  id={`audio-${format.formatId}-${idx}`}
-                  className="h-4 w-4 text-emerald-500"
-                />
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-foreground">{format.label}</span>
-                  {idx === 0 && (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-500 border border-emerald-500/20">
-                      <Sparkles className="h-2.5 w-2.5" /> Best
-                    </span>
-                  )}
+          {result.audioFormats.map((format, idx) => {
+            const isSelected = isAudioSelected && selectedFormat === format.formatId;
+            const sizeStr = formatBytes(format.filesize);
+
+            return (
+              <Label
+                key={`audio-item-${format.formatId}-${format.quality}-${idx}`}
+                htmlFor={`audio-radio-${idx}`}
+                className={`flex items-center justify-between rounded-xl border p-3 cursor-pointer transition-all ${
+                  isSelected
+                    ? "border-emerald-500 bg-emerald-500/10 shadow-sm"
+                    : "border-border/60 hover:bg-muted/40 hover:border-border"
+                }`}
+              >
+                <div className="flex items-center space-x-3">
+                  <RadioGroupItem
+                    value={format.formatId}
+                    id={`audio-radio-${idx}`}
+                    className="h-4 w-4 text-emerald-500"
+                  />
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-foreground">{format.label}</span>
+                    {idx === 0 && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-500 border border-emerald-500/20">
+                        <Sparkles className="h-2.5 w-2.5" /> Best
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono">
-                {format.bitrate && <span>{Math.round(format.bitrate)} kbps</span>}
-                <span className="uppercase text-[10px] bg-muted px-2 py-0.5 rounded border border-border">
-                  {format.ext}
-                </span>
-              </div>
-            </Label>
-          ))}
+                <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono">
+                  {sizeStr ? (
+                    <span className="text-[11px] font-medium text-foreground/80 bg-muted/60 px-2 py-0.5 rounded border border-border/50">
+                      {sizeStr}
+                    </span>
+                  ) : format.bitrate ? (
+                    <span>{Math.round(format.bitrate)} kbps</span>
+                  ) : null}
+                  <span className="uppercase text-[10px] bg-muted px-2 py-0.5 rounded border border-border">
+                    {format.ext}
+                  </span>
+                </div>
+              </Label>
+            );
+          })}
         </RadioGroup>
       </TabsContent>
     </Tabs>

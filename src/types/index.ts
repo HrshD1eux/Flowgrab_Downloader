@@ -14,6 +14,7 @@ export type AudioFormat = {
   quality: string;
   ext: string;
   bitrate?: number;
+  filesize?: number;
 };
 
 export type PlaylistItem = {

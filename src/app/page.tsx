@@ -80,12 +80,15 @@ export default function Home() {
 
   const { toast } = useToast();
 
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
+
   // Load saved settings on startup
   useEffect(() => {
     async function loadInitialSettings() {
       try {
         const settings = await getSettings();
         if (settings) {
+          setAppSettings(settings);
           setAdvancedOptions(prev => ({
             ...prev,
             outputPath: settings.default_output_path || prev.outputPath,
@@ -101,6 +104,7 @@ export default function Home() {
   }, []);
 
   const handleSettingsSaved = (newSettings: AppSettings) => {
+    setAppSettings(newSettings);
     setAdvancedOptions(prev => ({
       ...prev,
       outputPath: newSettings.default_output_path || prev.outputPath,
@@ -293,6 +297,17 @@ export default function Home() {
       setAnalysisResult(result);
       if (result.entries) {
         setSelectedPlaylistUrls(result.entries.map(e => e.url));
+      }
+
+      if (isAudioSelected) {
+        const defAudio = appSettings?.default_audio_format || 'opus';
+        const targetId = `audio-${defAudio.toLowerCase()}`;
+        const matched = result.audioFormats.find(
+          a => a.formatId === targetId || a.quality === defAudio.toLowerCase()
+        );
+        setSelectedFormat(matched?.formatId ?? result.audioFormats[0]?.formatId ?? 'audio-opus');
+      } else {
+        setSelectedFormat(result.videoFormats[0]?.formatId ?? 'bestvideo+bestaudio/best');
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -594,6 +609,8 @@ export default function Home() {
                           setSelectedFormat={handleFormatSelect}
                           isDownloading={downloadStatus === 'downloading'}
                           isAudioSelected={isAudioSelected}
+                          defaultAudioFormat={appSettings?.default_audio_format || 'opus'}
+                          defaultVideoFormat={appSettings?.default_format || 'bestvideo+bestaudio/best'}
                         />
                       </div>
                       <div className="space-y-3">

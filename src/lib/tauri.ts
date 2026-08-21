@@ -44,6 +44,7 @@ interface RustAudioFormat {
     quality: string;
     ext: string;
     bitrate: number | null;
+    filesize: number | null;
 }
 
 interface RustDownloadProgress {
@@ -95,6 +96,7 @@ function mapVideoInfo(r: RustVideoInfo): AnalysisResult {
             quality: f.quality,
             ext: f.ext,
             bitrate: f.bitrate ?? undefined,
+            filesize: f.filesize ?? undefined,
         })),
         entries: r.entries?.map((e) => ({
             title: e.title,
