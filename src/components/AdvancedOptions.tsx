@@ -18,12 +18,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { AdvancedOptions as AdvancedOptionsType } from "@/types";
-import { FolderOpen } from "lucide-react";
+import { FolderOpen, Clapperboard, Music } from "lucide-react";
 
 interface AdvancedOptionsProps {
   options: AdvancedOptionsType;
   setOptions: (options: AdvancedOptionsType) => void;
   isDownloading: boolean;
+  isAudioSelected?: boolean;
   onBrowseFolder?: () => void;
 }
 
@@ -31,6 +32,7 @@ export default function AdvancedOptions({
   options,
   setOptions,
   isDownloading,
+  isAudioSelected = false,
   onBrowseFolder,
 }: AdvancedOptionsProps) {
   return (
@@ -87,9 +89,21 @@ export default function AdvancedOptions({
               />
             </div>
 
-            {/* Output Format */}
+            {/* Output Format (Context Aware) */}
             <div className="grid gap-1.5">
-              <Label className="text-xs font-semibold">Output Container Format</Label>
+              <Label className="text-xs font-semibold flex items-center gap-1.5">
+                {isAudioSelected ? (
+                  <>
+                    <Music className="h-3.5 w-3.5 text-emerald-500" />
+                    <span>Audio Container Format</span>
+                  </>
+                ) : (
+                  <>
+                    <Clapperboard className="h-3.5 w-3.5 text-primary" />
+                    <span>Video Container Format</span>
+                  </>
+                )}
+              </Label>
               <Select
                 value={options.outputFormat}
                 onValueChange={(value: string) =>
@@ -98,17 +112,24 @@ export default function AdvancedOptions({
                 disabled={isDownloading}
               >
                 <SelectTrigger className="rounded-xl bg-muted/30 border-border h-9 text-xs">
-                  <SelectValue placeholder="Format" />
+                  <SelectValue placeholder="Select Container Format" />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl">
-                  <SelectItem value="mp4">MP4 (Video Container)</SelectItem>
-                  <SelectItem value="mkv">MKV (Matroska / Subtitle friendly)</SelectItem>
-                  <SelectItem value="webm">WEBM (Modern Web VP9/AV1)</SelectItem>
-                  <SelectItem value="opus">OPUS (Audio)</SelectItem>
-                  <SelectItem value="mp3">MP3 (Universal Audio)</SelectItem>
-                  <SelectItem value="m4a">M4A (Apple Audio)</SelectItem>
-                  <SelectItem value="flac">FLAC (Lossless Audio)</SelectItem>
-                  <SelectItem value="wav">WAV (PCM Audio)</SelectItem>
+                  {isAudioSelected ? (
+                    <>
+                      <SelectItem value="opus">.opus — OPUS (Best Quality & Compression)</SelectItem>
+                      <SelectItem value="mp3">.mp3 — MP3 (Universal Device Compatible)</SelectItem>
+                      <SelectItem value="m4a">.m4a — M4A / AAC (Apple & High Fidelity)</SelectItem>
+                      <SelectItem value="flac">.flac — FLAC (Lossless Studio Master)</SelectItem>
+                      <SelectItem value="wav">.wav — WAV (Uncompressed Studio PCM)</SelectItem>
+                    </>
+                  ) : (
+                    <>
+                      <SelectItem value="mp4">.mp4 — MP4 (Universal / Most Compatible)</SelectItem>
+                      <SelectItem value="mkv">.mkv — MKV (Matroska / Subtitle Friendly)</SelectItem>
+                      <SelectItem value="webm">.webm — WEBM (Modern Web VP9/AV1)</SelectItem>
+                    </>
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -125,26 +146,28 @@ export default function AdvancedOptions({
                   disabled={isDownloading}
                 />
                 <Label htmlFor="embed-thumbnail" className="text-xs font-medium cursor-pointer">
-                  Embed Thumbnail
+                  Embed Artwork
                 </Label>
               </div>
-              <div className="flex items-center space-x-2 bg-muted/20 p-2.5 rounded-xl border border-border">
-                <Checkbox
-                  id="download-subtitles"
-                  checked={options.downloadSubtitles}
-                  onCheckedChange={(checked: boolean | "indeterminate") =>
-                    setOptions({ ...options, downloadSubtitles: checked === true })
-                  }
-                  disabled={isDownloading}
-                />
-                <Label htmlFor="download-subtitles" className="text-xs font-medium cursor-pointer">
-                  Download Subtitles
-                </Label>
-              </div>
+              {!isAudioSelected && (
+                <div className="flex items-center space-x-2 bg-muted/20 p-2.5 rounded-xl border border-border">
+                  <Checkbox
+                    id="download-subtitles"
+                    checked={options.downloadSubtitles}
+                    onCheckedChange={(checked: boolean | "indeterminate") =>
+                      setOptions({ ...options, downloadSubtitles: checked === true })
+                    }
+                    disabled={isDownloading}
+                  />
+                  <Label htmlFor="download-subtitles" className="text-xs font-medium cursor-pointer">
+                    Download Subtitles
+                  </Label>
+                </div>
+              )}
             </div>
 
-            {/* Subtitle language */}
-            {options.downloadSubtitles && (
+            {/* Subtitle language (Only for video) */}
+            {!isAudioSelected && options.downloadSubtitles && (
               <div className="grid gap-1.5 animate-fade-in">
                 <Label className="text-xs font-semibold">Subtitle Language</Label>
                 <Select

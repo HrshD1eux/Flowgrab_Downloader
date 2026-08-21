@@ -1,6 +1,6 @@
 {
   "name": "video-downloader",
-  "version": "0.1.1",
+  "version": "1.1.1",
   "private": true,
   "description": "A modern, high-performance desktop video and audio downloader powered by yt-dlp",
   "scripts": {

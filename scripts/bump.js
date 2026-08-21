@@ -10,9 +10,28 @@ try {
   process.exit(1);
 }
 
-let [major, minor, patch] = pkg.version.split('.');
-patch = parseInt(patch) + 1;
-const newVersion = `${major}.${minor}.${patch}`;
+const arg = process.argv[2];
+
+let [major, minor, patch] = pkg.version.split('.').map(n => parseInt(n, 10) || 0);
+
+let newVersion;
+if (arg && /^\d+\.\d+\.\d+$/.test(arg)) {
+  // Explicit version provided (e.g. node scripts/bump.js 1.1.1)
+  newVersion = arg;
+} else if (arg === 'major') {
+  newVersion = `${major + 1}.1.1`;
+} else if (arg === 'minor') {
+  newVersion = `${major}.${minor + 1}.1`;
+} else {
+  // Default bump rule:
+  // 1.1.1 -> 1.1.2 -> ... -> 1.1.40 -> 1.2.1 -> ... -> 1.2.40 -> 1.3.1
+  patch += 1;
+  if (patch > 40) {
+    minor += 1;
+    patch = 1;
+  }
+  newVersion = `${major}.${minor}.${patch}`;
+}
 
 // Update package.json
 pkg.version = newVersion;
@@ -34,4 +53,4 @@ if (fs.existsSync(cargoTomlPath)) {
   fs.writeFileSync(cargoTomlPath, cargoToml);
 }
 
-console.log(`\x1b[32m✔ Successfully bumped version to ${newVersion} across all configuration files.\x1b[0m`);
+console.log(`\x1b[32m✔ Successfully updated version to ${newVersion} across package.json, tauri.conf.json, and Cargo.toml.\x1b[0m`);

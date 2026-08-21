@@ -362,7 +362,24 @@ export default function Home() {
   const handleFormatSelect = useCallback((formatId: string | null, isAudio: boolean) => {
     setSelectedFormat(formatId);
     setIsAudioSelected(isAudio);
-  }, []);
+
+    setAdvancedOptions(prev => {
+      const audioFormats = ['opus', 'mp3', 'm4a', 'flac', 'wav'];
+      if (isAudio) {
+        let matchingExt = 'opus';
+        if (formatId) {
+          const stripped = formatId.replace(/^audio-/, '').toLowerCase();
+          if (audioFormats.includes(stripped)) matchingExt = stripped;
+        }
+        return { ...prev, outputFormat: matchingExt };
+      } else {
+        if (audioFormats.includes(prev.outputFormat.toLowerCase())) {
+          return { ...prev, outputFormat: appSettings?.default_format || 'mp4' };
+        }
+        return prev;
+      }
+    });
+  }, [appSettings]);
 
   const handleDownload = async () => {
     if (!analysisResult && batchTargets.length === 0) return;
@@ -688,6 +705,7 @@ export default function Home() {
                           options={advancedOptions}
                           setOptions={setAdvancedOptions}
                           isDownloading={downloadStatus === 'downloading'}
+                          isAudioSelected={isAudioSelected}
                           onBrowseFolder={handleBrowseFolder}
                         />
                       </div>
