@@ -169,13 +169,13 @@ export default function Home() {
 
   const handleCancelItem = async (id: string) => {
     try {
-      await cancelDownload(id);
+      await cancelDownload(id, 'cancelled');
       activeDownloads.current.delete(id);
       downloadOptionsMap.current.delete(id);
       setBatchProgressMap(prev => {
         const next = new Map(prev);
         const item = next.get(id);
-        if (item) next.set(id, { ...item, status: 'cancelled', speed: '' });
+        if (item) next.set(id, { ...item, status: 'cancelled', speed: '', eta: '' });
         return next;
       });
 
@@ -190,15 +190,15 @@ export default function Home() {
 
   const handlePauseItem = async (id: string) => {
     try {
-      await cancelDownload(id);
+      await cancelDownload(id, 'paused');
       activeDownloads.current.delete(id);
       setBatchProgressMap(prev => {
         const next = new Map(prev);
         const item = next.get(id);
-        if (item) next.set(id, { ...item, status: 'paused', speed: '' });
+        if (item) next.set(id, { ...item, status: 'paused', speed: '', eta: '' });
         return next;
       });
-      toast({ title: "Paused", description: "Download has been paused." });
+      toast({ title: "Paused", description: "Download has been paused. Click Resume anytime." });
     } catch (err) {
       toast({ title: "Failed to pause", description: String(err), variant: "destructive" });
     }
@@ -212,10 +212,12 @@ export default function Home() {
     }
 
     activeDownloads.current.add(id);
+    setDownloadStatus('downloading');
+    setErrorMessage('');
     setBatchProgressMap(prev => {
       const next = new Map(prev);
       const item = next.get(id);
-      if (item) next.set(id, { ...item, status: 'downloading', speed: 'Resuming...' });
+      if (item) next.set(id, { ...item, status: 'downloading', speed: 'Resuming...', eta: '' });
       return next;
     });
 
@@ -223,13 +225,48 @@ export default function Home() {
       await startDownload(id, options);
     } catch (err) {
       activeDownloads.current.delete(id);
+      const msg = String(err);
+      setErrorMessage(msg);
       setBatchProgressMap(prev => {
         const next = new Map(prev);
         const item = next.get(id);
-        if (item) next.set(id, { ...item, status: 'error', speed: '' });
+        if (item) next.set(id, { ...item, status: `error: ${msg}`, speed: '', eta: '' });
         return next;
       });
-      toast({ title: "Failed to resume", description: String(err), variant: "destructive" });
+      toast({ title: "Failed to resume", description: msg, variant: "destructive" });
+    }
+  };
+
+  const handleRetryItem = async (id: string) => {
+    const options = downloadOptionsMap.current.get(id);
+    if (!options) {
+      toast({ title: "Cannot retry", description: "Download configuration expired. Please analyze URL again.", variant: "destructive" });
+      return;
+    }
+
+    activeDownloads.current.add(id);
+    setDownloadStatus('downloading');
+    setErrorMessage('');
+    setBatchProgressMap(prev => {
+      const next = new Map(prev);
+      const item = next.get(id);
+      if (item) next.set(id, { ...item, status: 'downloading', percent: 0, speed: 'Retrying...', eta: '' });
+      return next;
+    });
+
+    try {
+      await startDownload(id, options);
+    } catch (err) {
+      activeDownloads.current.delete(id);
+      const msg = String(err);
+      setErrorMessage(msg);
+      setBatchProgressMap(prev => {
+        const next = new Map(prev);
+        const item = next.get(id);
+        if (item) next.set(id, { ...item, status: `error: ${msg}`, speed: '', eta: '' });
+        return next;
+      });
+      toast({ title: "Retry Failed", description: msg, variant: "destructive" });
     }
   };
 
@@ -374,6 +411,16 @@ export default function Home() {
             setDownloadStatus('completed');
             toast({ title: "Download complete!", description: "Check your history for completed files." });
           }
+        } else if (progress.status === 'paused') {
+          activeDownloads.current.delete(progress.downloadId);
+          if (activeDownloads.current.size === 0) {
+            setDownloadStatus('idle');
+          }
+        } else if (progress.status === 'cancelled') {
+          activeDownloads.current.delete(progress.downloadId);
+          if (activeDownloads.current.size === 0) {
+            setDownloadStatus('idle');
+          }
         } else if (progress.status.startsWith('error')) {
           activeDownloads.current.delete(progress.downloadId);
           const msg = progress.status.replace('error:', '').trim();
@@ -381,6 +428,11 @@ export default function Home() {
           if (activeDownloads.current.size === 0) {
             setDownloadStatus('error');
           }
+          toast({
+            title: "Download Failed",
+            description: msg || "Process encountered an error.",
+            variant: "destructive",
+          });
         }
       });
       unlistenRef.current = unlisten;
@@ -654,6 +706,7 @@ export default function Home() {
               onCancelActive={handleCancelItem}
               onPauseActive={handlePauseItem}
               onResumeActive={handleResumeItem}
+              onRetryActive={handleRetryItem}
               refreshTrigger={historyRefreshKey}
             />
           </div>

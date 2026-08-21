@@ -15,6 +15,7 @@ pub mod commands;
 pub struct AppState {
     pub download_history: Arc<Mutex<Vec<HistoryItem>>>,
     pub active_downloads: Arc<Mutex<HashMap<String, CommandChild>>>,
+    pub stopped_downloads: Arc<Mutex<HashMap<String, String>>>,
     pub download_semaphore: Arc<tokio::sync::Semaphore>,
 }
 
@@ -23,6 +24,7 @@ pub fn run() {
     let state = AppState {
         download_history: Arc::new(Mutex::new(Vec::new())),
         active_downloads: Arc::new(Mutex::new(HashMap::new())),
+        stopped_downloads: Arc::new(Mutex::new(HashMap::new())),
         download_semaphore: Arc::new(tokio::sync::Semaphore::new(5)),
     };
 

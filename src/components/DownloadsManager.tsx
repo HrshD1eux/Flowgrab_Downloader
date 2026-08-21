@@ -5,6 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Download,
   Trash2,
   XCircle,
@@ -18,6 +26,9 @@ import {
   FolderOpen,
   Pause,
   Play,
+  RotateCcw,
+  AlertCircle,
+  Info,
 } from "lucide-react";
 import {
   getDownloadHistory,
@@ -41,6 +52,7 @@ interface DownloadsManagerProps {
   onCancelActive: (id: string) => void;
   onPauseActive?: (id: string) => void;
   onResumeActive?: (id: string) => void;
+  onRetryActive?: (id: string) => void;
   refreshTrigger: number;
 }
 
@@ -49,11 +61,13 @@ export default function DownloadsManager({
   onCancelActive,
   onPauseActive,
   onResumeActive,
+  onRetryActive,
   refreshTrigger,
 }: DownloadsManagerProps) {
   const { toast } = useToast();
   const [history, setHistory] = useState<DownloadHistoryItem[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+  const [selectedError, setSelectedError] = useState<{ title: string; message: string } | null>(null);
 
   const activeList = Array.from(activeDownloads.values());
   const activeCount = activeList.filter(
@@ -165,9 +179,12 @@ export default function DownloadsManager({
               {activeList.map((item) => {
                 const isCompleted = item.status === "completed";
                 const isError = item.status.startsWith("error");
-                const isQueued = item.status === "queued";
                 const isPaused = item.status === "paused";
+                const isCancelled = item.status === "cancelled";
+                const isQueued = item.status === "queued";
                 const isDownloading = item.status === "downloading";
+
+                const errorDetails = isError ? item.status.replace(/^error:\s*/, '') : '';
 
                 return (
                   <div
@@ -180,21 +197,34 @@ export default function DownloadsManager({
                           {item.title || "Downloading media..."}
                         </h4>
                         <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono text-muted-foreground">
-                          <span
-                            className={`px-2 py-0.5 rounded-md font-semibold uppercase text-[10px] ${
-                              isCompleted
-                                ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
-                                : isError
-                                ? "bg-destructive/10 text-destructive border border-destructive/20"
-                                : isPaused
-                                ? "bg-amber-500/10 text-amber-500 border border-amber-500/20"
-                                : isQueued
-                                ? "bg-blue-500/10 text-blue-500 border border-blue-500/20"
-                                : "bg-primary/10 text-primary border border-primary/20"
-                            }`}
-                          >
-                            {item.status}
-                          </span>
+                          {isError ? (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedError({ title: item.title, message: errorDetails })}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-semibold text-[10px] bg-destructive/10 text-destructive border border-destructive/20 hover:bg-destructive/20 transition-colors"
+                              title="Click to view error details"
+                            >
+                              <AlertCircle className="h-3 w-3" />
+                              <span className="truncate max-w-[200px]">{errorDetails || 'Failed'}</span>
+                              <Info className="h-2.5 w-2.5 opacity-70" />
+                            </button>
+                          ) : (
+                            <span
+                              className={`px-2 py-0.5 rounded-md font-semibold uppercase text-[10px] ${
+                                isCompleted
+                                  ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
+                                  : isPaused
+                                  ? "bg-amber-500/10 text-amber-500 border border-amber-500/20"
+                                  : isCancelled
+                                  ? "bg-muted text-muted-foreground border border-border"
+                                  : isQueued
+                                  ? "bg-blue-500/10 text-blue-500 border border-blue-500/20"
+                                  : "bg-primary/10 text-primary border border-primary/20"
+                              }`}
+                            >
+                              {item.status}
+                            </span>
+                          )}
 
                           {item.speed && <span>⚡ {item.speed}</span>}
                           {item.eta && <span>⏳ {item.eta}</span>}
@@ -202,7 +232,7 @@ export default function DownloadsManager({
                       </div>
 
                       <div className="flex items-center gap-1.5 shrink-0">
-                        {/* Pause / Resume Controls */}
+                        {/* 1. Pause Control (when downloading) */}
                         {isDownloading && onPauseActive && (
                           <Button
                             variant="ghost"
@@ -215,28 +245,42 @@ export default function DownloadsManager({
                           </Button>
                         )}
 
+                        {/* 2. Resume Control (when paused) */}
                         {isPaused && onResumeActive && (
                           <Button
-                            variant="ghost"
                             size="sm"
                             onClick={() => onResumeActive(item.downloadId)}
-                            className="h-8 px-2.5 text-xs text-emerald-500 hover:bg-emerald-500/10 hover:text-emerald-600 rounded-xl font-semibold"
+                            className="h-8 px-3 text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold shadow-sm active:scale-95 transition-all"
                             title="Resume Download"
                           >
-                            <Play className="h-3.5 w-3.5 mr-1" /> Resume
+                            <Play className="h-3.5 w-3.5 mr-1 fill-current" /> Resume
                           </Button>
                         )}
 
-                        {/* Stop Control */}
-                        {!isCompleted && !isError && (
+                        {/* 3. Retry Control (when errored) */}
+                        {isError && onRetryActive && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => onRetryActive(item.downloadId)}
+                            className="h-8 px-2.5 text-xs text-primary hover:bg-primary/10 rounded-xl font-semibold border-primary/30"
+                            title="Retry Download"
+                          >
+                            <RotateCcw className="h-3.5 w-3.5 mr-1" /> Retry
+                          </Button>
+                        )}
+
+                        {/* 4. Stop / Dismiss Control */}
+                        {!isCompleted && (
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => onCancelActive(item.downloadId)}
-                            className="h-8 px-2.5 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive rounded-xl font-semibold"
-                            title="Cancel / Stop"
+                            className="h-8 px-2 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl font-medium"
+                            title={isError || isCancelled ? "Dismiss" : "Cancel / Stop"}
                           >
-                            <XCircle className="h-3.5 w-3.5 mr-1" /> Stop
+                            <XCircle className="h-3.5 w-3.5 mr-1" />
+                            {isError || isCancelled ? "Dismiss" : "Stop"}
                           </Button>
                         )}
                       </div>
@@ -390,6 +434,38 @@ export default function DownloadsManager({
           )}
         </CardContent>
       </Card>
+
+      {/* Error Details Modal */}
+      {selectedError && (
+        <Dialog open={!!selectedError} onOpenChange={(open) => !open && setSelectedError(null)}>
+          <DialogContent className="sm:max-w-[500px] rounded-3xl bg-card border border-border p-6">
+            <DialogHeader className="space-y-2">
+              <div className="flex items-center gap-2 text-destructive font-bold text-base">
+                <AlertCircle className="h-5 w-5" />
+                <DialogTitle>Download Error Details</DialogTitle>
+              </div>
+              <DialogDescription className="text-xs text-muted-foreground line-clamp-1">
+                {selectedError.title}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="p-4 rounded-2xl bg-destructive/10 border border-destructive/20 text-xs font-mono text-destructive whitespace-pre-wrap max-h-48 overflow-y-auto">
+              {selectedError.message || "An unexpected error occurred during extraction or download."}
+            </div>
+
+            <DialogFooter className="pt-2 flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedError(null)}
+                className="rounded-xl px-5 text-xs font-semibold"
+              >
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

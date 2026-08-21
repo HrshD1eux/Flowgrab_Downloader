@@ -262,16 +262,62 @@ pub async fn start_download(
                         }
                         tauri_plugin_shell::process::CommandEvent::Stderr(line_bytes) => {
                             let line = String::from_utf8_lossy(&line_bytes);
-                            log::warn!("[yt-dlp stderr] {line}");
-                            if line.contains("HTTP Error 403") {
-                                error_msg = "HTTP 403 Forbidden: YouTube stream access denied".to_string();
+                            let trimmed = line.trim();
+                            log::warn!("[yt-dlp stderr] {trimmed}");
+
+                            if trimmed.starts_with("ERROR:") || trimmed.starts_with("error:") {
+                                let msg = trimmed
+                                    .trim_start_matches("ERROR:")
+                                    .trim_start_matches("error:")
+                                    .trim();
+                                if let Ok(re_tag) = regex::Regex::new(r"^\[[^\]]+\]\s*") {
+                                    let clean = re_tag.replace(msg, "").trim().to_string();
+                                    if !clean.is_empty() {
+                                        error_msg = clean;
+                                    }
+                                } else {
+                                    error_msg = msg.to_string();
+                                }
+                            } else if trimmed.contains("HTTP Error 403") {
+                                error_msg = "HTTP 403 Forbidden: Media stream access denied".to_string();
+                            } else if trimmed.contains("HTTP Error 404") {
+                                error_msg = "HTTP 404: Media file not found".to_string();
+                            } else if trimmed.contains("Sign in to confirm") {
+                                error_msg = "Platform requested user sign-in/verification".to_string();
+                            } else if trimmed.contains("Private video") {
+                                error_msg = "This video is private or restricted".to_string();
+                            } else if trimmed.contains("Video unavailable") {
+                                error_msg = "This video is unavailable or removed".to_string();
                             }
                         }
                         tauri_plugin_shell::process::CommandEvent::Terminated(payload) => {
+                            // Check if this was an intentional pause or cancel
+                            let intentional_stop = {
+                                let state = app_handle.state::<crate::AppState>();
+                                let mut stopped = state.stopped_downloads.lock().unwrap();
+                                stopped.remove(&download_id_for_event)
+                            };
+
+                            if let Some(reason) = intentional_stop {
+                                let target_status = if reason == "paused" { "paused" } else { "cancelled" };
+                                let _ = app_handle.emit(
+                                    "download://progress",
+                                    DownloadProgress {
+                                        download_id: download_id_for_event.clone(),
+                                        percent: 0.0,
+                                        speed: String::new(),
+                                        eta: String::new(),
+                                        status: target_status.to_string(),
+                                        filename: final_filename.clone(),
+                                    },
+                                );
+                                return;
+                            }
+
                             if payload.code != Some(0) {
                                 success = false;
                                 if error_msg.is_empty() {
-                                    error_msg = format!("Exit code {}", payload.code.unwrap_or(-1));
+                                    error_msg = format!("Download failed (Exit code {})", payload.code.unwrap_or(-1));
                                 }
                             }
                             break;
@@ -366,7 +412,14 @@ pub async fn start_download(
 pub async fn cancel_download(
     state: tauri::State<'_, crate::AppState>,
     download_id: String,
+    reason: Option<String>,
 ) -> Result<(), String> {
+    // Record intentional stop reason before killing
+    {
+        let mut stopped = state.stopped_downloads.lock().unwrap();
+        stopped.insert(download_id.clone(), reason.unwrap_or_else(|| "cancelled".to_string()));
+    }
+
     let mut downloads = state.active_downloads.lock().unwrap();
     if let Some(child) = downloads.remove(&download_id) {
         #[cfg(target_os = "windows")]

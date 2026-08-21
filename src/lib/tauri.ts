@@ -167,9 +167,9 @@ export async function getDownloadHistory(): Promise<DownloadHistoryItem[]> {
     }));
 }
 
-/** Cancel an active download by ID */
-export async function cancelDownload(downloadId: string): Promise<void> {
-    await invoke('cancel_download', { downloadId });
+/** Cancel or pause an active download by ID */
+export async function cancelDownload(downloadId: string, reason: 'paused' | 'cancelled' | string = 'cancelled'): Promise<void> {
+    await invoke('cancel_download', { downloadId, reason });
 }
 
 /** Clear download history */
