@@ -27,7 +27,12 @@ pub fn run() {
     };
 
     tauri::Builder::default()
-        .plugin(tauri_plugin_log::Builder::default().level(log::LevelFilter::Info).build())
+        .plugin(
+            tauri_plugin_log::Builder::default()
+                .level(log::LevelFilter::Info)
+                .filter(|metadata| !metadata.target().starts_with("tao::"))
+                .build(),
+        )
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_autostart::init(
@@ -41,6 +46,11 @@ pub fn run() {
                 .set_focus();
         }))
         .setup(|app| {
+            // Initialize in-memory history from disk so history is never lost on restart
+            let initial_history = commands::settings::load_initial_history(app.handle());
+            let state = app.state::<AppState>();
+            *state.download_history.lock().unwrap() = initial_history;
+
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let show_i = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show_i, &quit_i])?;
@@ -87,6 +97,7 @@ pub fn run() {
             commands::settings::clear_download_history,
             commands::settings::get_settings,
             commands::settings::save_settings,
+            commands::update::get_ytdlp_version,
             commands::update::update_yt_dlp,
         ])
         .run(tauri::generate_context!())

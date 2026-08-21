@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
-use tauri_plugin_shell::ShellExt;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct VideoFormat {
@@ -43,7 +42,7 @@ pub struct VideoInfo {
 }
 
 /// Formats duration from seconds to HH:MM:SS or MM:SS
-fn format_duration(secs: f64) -> String {
+pub fn format_duration(secs: f64) -> String {
     let total = secs as u64;
     let hours = total / 3600;
     let minutes = (total % 3600) / 60;
@@ -55,80 +54,56 @@ fn format_duration(secs: f64) -> String {
     }
 }
 
-/// Get video info and available formats from a URL using yt-dlp
+/// Get video info and available formats from a URL using a single-pass yt-dlp invocation
 #[tauri::command]
 pub async fn get_video_info(app: AppHandle, url: String) -> Result<VideoInfo, String> {
-    // ── Step 1: flat-playlist pass to detect if URL is a playlist ──
-    let flat_output = app
-        .shell()
-        .sidecar("yt-dlp")
-        .map_err(|e| format!("Failed to find yt-dlp sidecar: {e}"))?
+    // Single-pass extraction with extractor-args for maximum speed and compatibility
+    let output = crate::commands::engine::get_ytdlp_command(&app)?
         .args([
-            "--dump-json",
+            "--dump-single-json",
             "--flat-playlist",
             "--no-warnings",
-            "--quiet",
+            "--no-check-certificates",
+            "--extractor-args",
+            "youtube:player_client=android,web,ios",
             &url,
         ])
         .output()
         .await
         .map_err(|e| format!("Failed to run yt-dlp: {e}"))?;
 
-    if !flat_output.status.success() {
-        let stderr = String::from_utf8_lossy(&flat_output.stderr).to_string();
-        return Err(format!("yt-dlp error: {stderr}"));
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+        let err_msg = if !stderr.is_empty() { stderr } else { stdout };
+        return Err(format!("yt-dlp error: {}", err_msg.trim()));
     }
 
-    let flat_stdout = String::from_utf8_lossy(&flat_output.stdout).to_string();
-    let flat_lines: Vec<&str> = flat_stdout.lines().filter(|l| !l.trim().is_empty()).collect();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let json: serde_json::Value = serde_json::from_str(stdout.trim())
+        .map_err(|e| format!("Failed to parse yt-dlp output JSON: {e}"))?;
 
-    let first_json: serde_json::Value = serde_json::from_str(flat_lines.first().ok_or("No output from yt-dlp")?)
-        .map_err(|e| format!("Failed to parse yt-dlp output: {e}"))?;
+    let is_playlist_type = json["_type"].as_str() == Some("playlist");
+    let has_entries = json["entries"].as_array().map_or(false, |a| !a.is_empty());
+    let is_playlist = is_playlist_type || has_entries;
 
-    let is_playlist_type = first_json["_type"].as_str() == Some("playlist");
-    let has_playlist_count = first_json["playlist_count"].is_number();
-    let is_playlist = is_playlist_type || has_playlist_count || flat_lines.len() > 1;
+    let mut title = json["playlist_title"]
+        .as_str()
+        .or_else(|| json["title"].as_str())
+        .unwrap_or("Unknown Title")
+        .to_string();
 
-    // ── If single video: do a FULL dump-json (no --flat-playlist) to get thumbnail + formats ──
-    let json: serde_json::Value = if !is_playlist {
-        let full_output = app
-            .shell()
-            .sidecar("yt-dlp")
-            .map_err(|e| format!("Failed to find yt-dlp sidecar: {e}"))?
-            .args([
-                "--dump-json",
-                "--no-playlist",
-                "--no-warnings",
-                "--quiet",
-                &url,
-            ])
-            .output()
-            .await
-            .map_err(|e| format!("Failed to run yt-dlp (full): {e}"))?;
-
-        if full_output.status.success() {
-            let full_stdout = String::from_utf8_lossy(&full_output.stdout).to_string();
-            serde_json::from_str(full_stdout.lines().find(|l| !l.trim().is_empty()).unwrap_or("{}"))
-                .unwrap_or(first_json.clone())
-        } else {
-            first_json.clone()
-        }
-    } else {
-        first_json.clone()
-    };
-
-    let mut title = json["playlist_title"].as_str().or_else(|| json["title"].as_str()).unwrap_or("Unknown Title").to_string();
     if title == "Unknown Title" && json["playlist"].is_string() {
         title = json["playlist"].as_str().unwrap().to_string();
     }
 
-    // For thumbnail, prefer the best quality from the "thumbnails" array
+    // Best resolution thumbnail
     let thumbnail_url = {
         let mut best = json["thumbnail"].as_str().unwrap_or("").to_string();
         if best.is_empty() {
             if let Some(thumbs) = json["thumbnails"].as_array() {
-                // Find the highest resolution thumbnail
-                best = thumbs.iter()
+                best = thumbs
+                    .iter()
                     .filter_map(|t| t["url"].as_str())
                     .last()
                     .unwrap_or("")
@@ -147,60 +122,89 @@ pub async fn get_video_info(app: AppHandle, url: String) -> Result<VideoInfo, St
         .unwrap_or("Unknown")
         .to_string();
     let actual_url = json["webpage_url"].as_str().unwrap_or(&url).to_string();
-    let playlist_count = json["playlist_count"].as_u64().map(|n| n as u32);
 
     let mut items = Vec::new();
 
     if is_playlist {
-        // Harvest items from all flat-playlist lines
-        for line in &flat_lines {
-            if let Ok(e) = serde_json::from_str::<serde_json::Value>(line) {
-                let item_url = e["url"].as_str().or_else(|| e["webpage_url"].as_str()).unwrap_or("");
-                if !item_url.is_empty() && (e["_type"].as_str() == Some("url") || e["_type"].is_null()) {
-                    // Prefer the first good thumbnail from the thumbnails array
+        if let Some(entries_arr) = json["entries"].as_array() {
+            for e in entries_arr {
+                let item_url = if let Some(u) = e["webpage_url"].as_str() {
+                    u.to_string()
+                } else if let Some(u) = e["url"].as_str() {
+                    if u.starts_with("http") {
+                        u.to_string()
+                    } else if let Some(id) = e["id"].as_str() {
+                        format!("https://www.youtube.com/watch?v={id}")
+                    } else {
+                        u.to_string()
+                    }
+                } else if let Some(id) = e["id"].as_str() {
+                    format!("https://www.youtube.com/watch?v={id}")
+                } else {
+                    String::new()
+                };
+
+                if !item_url.is_empty() {
                     let item_thumb = {
                         let mut t = e["thumbnail"].as_str().unwrap_or("").to_string();
                         if t.is_empty() {
                             if let Some(thumbs) = e["thumbnails"].as_array() {
-                                t = thumbs.iter().filter_map(|x| x["url"].as_str()).last().unwrap_or("").to_string();
+                                t = thumbs
+                                    .iter()
+                                    .filter_map(|x| x["url"].as_str())
+                                    .last()
+                                    .unwrap_or("")
+                                    .to_string();
                             }
                         }
                         t
                     };
+
+                    let item_duration_secs = e["duration"].as_f64().unwrap_or(0.0);
                     items.push(PlaylistItem {
                         title: e["title"].as_str().unwrap_or("Unknown").to_string(),
-                        url: item_url.to_string(),
+                        url: item_url,
                         thumbnail_url: item_thumb,
-                        duration: format_duration(e["duration"].as_f64().unwrap_or(0.0)),
+                        duration: format_duration(item_duration_secs),
                     });
                 }
             }
         }
     }
 
-    // If playlist thumbnail is still missing, fall back to first item's thumb
     let mut final_thumbnail_url = thumbnail_url;
     if final_thumbnail_url.is_empty() && !items.is_empty() {
-        final_thumbnail_url = items.iter().find(|i| !i.thumbnail_url.is_empty())
+        final_thumbnail_url = items
+            .iter()
+            .find(|i| !i.thumbnail_url.is_empty())
             .map(|i| i.thumbnail_url.clone())
             .unwrap_or_default();
     }
 
-    let final_playlist_count = playlist_count.or_else(|| if is_playlist { Some(items.len() as u32) } else { None });
-    let entries = if is_playlist { Some(items) } else { None };
+    let final_playlist_count = if is_playlist {
+        Some(json["playlist_count"].as_u64().map(|n| n as u32).unwrap_or(items.len() as u32))
+    } else {
+        None
+    };
 
-    // Build format lists from yt-dlp's "formats" array (only if it's NOT a flat playlist, or if it has them)
+    let entries = if is_playlist && !items.is_empty() {
+        Some(items)
+    } else {
+        None
+    };
+
     let mut video_formats: Vec<VideoFormat> = Vec::new();
     let mut audio_formats: Vec<AudioFormat> = Vec::new();
 
+    // 1. Harvest extracted formats from json["formats"] if present
     if let Some(formats) = json["formats"].as_array() {
-        // ... (rest of format parsing logic remains same)
         for f in formats.iter().rev() {
             let format_id = f["format_id"].as_str().unwrap_or("").to_string();
             let ext = f["ext"].as_str().unwrap_or("").to_string();
             let vcodec = f["vcodec"].as_str().unwrap_or("none");
             let acodec = f["acodec"].as_str().unwrap_or("none");
 
+            // Audio streams
             if vcodec == "none" && acodec != "none" {
                 let abr = f["abr"].as_f64();
                 let tbr = f["tbr"].as_f64();
@@ -211,7 +215,7 @@ pub async fn get_video_info(app: AppHandle, url: String) -> Result<VideoInfo, St
                     format!("{} audio", ext.to_uppercase())
                 };
                 let quality = format!("audio-{format_id}");
-                if audio_formats.len() < 6 && !audio_formats.iter().any(|a: &AudioFormat| a.label == label) {
+                if !audio_formats.iter().any(|a| a.label == label) {
                     audio_formats.push(AudioFormat {
                         format_id: format_id.clone(),
                         label,
@@ -221,6 +225,8 @@ pub async fn get_video_info(app: AppHandle, url: String) -> Result<VideoInfo, St
                     });
                 }
             }
+
+            // Video streams
             if vcodec != "none" {
                 let height = f["height"].as_u64();
                 let fps = f["fps"].as_f64();
@@ -229,7 +235,7 @@ pub async fn get_video_info(app: AppHandle, url: String) -> Result<VideoInfo, St
                     let label = if fps_label.is_empty() { format!("{}p · {}", h, ext.to_uppercase()) } else { format!("{}p{} · {}", h, fps_label, ext.to_uppercase()) };
                     let quality = format!("{h}p");
                     let filesize = f["filesize"].as_u64().or_else(|| f["filesize_approx"].as_u64());
-                    if video_formats.len() < 8 && !video_formats.iter().any(|v: &VideoFormat| v.quality == quality) {
+                    if !video_formats.iter().any(|v| v.quality == quality) {
                         video_formats.push(VideoFormat { format_id, label, quality, ext, filesize });
                     }
                 }
@@ -237,25 +243,32 @@ pub async fn get_video_info(app: AppHandle, url: String) -> Result<VideoInfo, St
         }
     }
 
-    // For playlists, yt-dlp --flat-playlist doesn't expose individual format lists,
-    // so we inject generic height-preference options that yt-dlp understands at download time.
-    if is_playlist {
-        let preset_heights: &[u64] = &[2160, 1440, 1080, 720, 480, 360];
-        for &h in preset_heights {
-            let quality = format!("{h}p");
-            if !video_formats.iter().any(|v| v.quality == quality) {
-                video_formats.push(VideoFormat {
-                    format_id: format!("bestvideo[height<={h}]+bestaudio/best[height<={h}]"),
-                    label: format!("{h}p (max)"),
-                    quality: quality.clone(),
-                    ext: "mp4".to_string(),
-                    filesize: None,
-                });
-            }
+    // 2. Inject standard high-definition quality presets (4K, 2K, 1080p, 720p, 480p, 360p, 240p)
+    // This guarantees that the user always has all resolution options available!
+    let standard_heights: &[(u64, &str)] = &[
+        (2160, "4K · 2160p (Ultra HD)"),
+        (1440, "2K · 1440p (Quad HD)"),
+        (1080, "1080p (Full HD)"),
+        (720, "720p (HD)"),
+        (480, "480p (Standard)"),
+        (360, "360p (Medium)"),
+        (240, "240p (Data Saver)"),
+    ];
+
+    for &(h, label) in standard_heights {
+        let quality = format!("{h}p");
+        if !video_formats.iter().any(|v| v.quality == quality) {
+            video_formats.push(VideoFormat {
+                format_id: format!("bestvideo[height<={h}]+bestaudio/best[height<={h}]"),
+                label: label.to_string(),
+                quality: quality.clone(),
+                ext: "mp4".to_string(),
+                filesize: None,
+            });
         }
     }
 
-    // Sort by resolution descending (treat 'best' as highest)
+    // Sort video formats descending by resolution
     video_formats.sort_by(|a, b| {
         let parse = |s: &str| -> u32 {
             if s == "best" { 99999 }
@@ -264,21 +277,36 @@ pub async fn get_video_info(app: AppHandle, url: String) -> Result<VideoInfo, St
         parse(&b.quality).cmp(&parse(&a.quality))
     });
 
-    // Always prepend "Best Available" and "Best Audio" options
+    // Always prepend "Best Available" at top
     video_formats.insert(0, VideoFormat {
         format_id: "bestvideo+bestaudio/best".to_string(),
-        label: "Best Available".to_string(),
+        label: "Best Available (Highest Quality)".to_string(),
         quality: "best".to_string(),
         ext: "mp4".to_string(),
         filesize: None,
     });
-    audio_formats.insert(0, AudioFormat {
-        format_id: "bestaudio".to_string(),
-        label: "Best Audio (auto)".to_string(),
-        quality: "audio-best".to_string(),
-        ext: "mp3".to_string(),
-        bitrate: None,
-    });
+
+    // Populate Audio options with top codecs
+    let audio_presets = [
+        ("bestaudio", "Best Audio (Auto Best Quality)", "audio-best", "mp3", None),
+        ("bestaudio[ext=opus]/bestaudio", "OPUS (Best Quality & Efficiency)", "audio-opus", "opus", Some(160.0)),
+        ("bestaudio", "MP3 320kbps (Universal Device Compatible)", "audio-mp3", "mp3", Some(320.0)),
+        ("bestaudio[ext=m4a]/bestaudio", "M4A / AAC (Apple & High Fidelity)", "audio-m4a", "m4a", Some(256.0)),
+        ("bestaudio", "FLAC (Lossless Studio Master)", "audio-flac", "flac", None),
+        ("bestaudio", "WAV (Uncompressed Studio PCM)", "audio-wav", "wav", None),
+    ];
+
+    for (fid, label, qual, ext, br) in audio_presets.iter().rev() {
+        if !audio_formats.iter().any(|a| a.quality == *qual) {
+            audio_formats.insert(0, AudioFormat {
+                format_id: fid.to_string(),
+                label: label.to_string(),
+                quality: qual.to_string(),
+                ext: ext.to_string(),
+                bitrate: *br,
+            });
+        }
+    }
 
     Ok(VideoInfo {
         title,
@@ -292,4 +320,21 @@ pub async fn get_video_info(app: AppHandle, url: String) -> Result<VideoInfo, St
         audio_formats,
         entries,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_format_duration_short() {
+        assert_eq!(format_duration(45.0), "00:45");
+        assert_eq!(format_duration(125.0), "02:05");
+    }
+
+    #[test]
+    fn test_format_duration_long() {
+        assert_eq!(format_duration(3665.0), "01:01:05");
+        assert_eq!(format_duration(7200.0), "02:00:00");
+    }
 }

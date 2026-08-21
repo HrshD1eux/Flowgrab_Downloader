@@ -2,11 +2,39 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use tauri::{AppHandle, Manager};
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AppSettings {
+    #[serde(default)]
     pub default_output_path: String,
+    #[serde(default = "default_video_format")]
     pub default_format: String,
+    #[serde(default = "default_audio_format")]
+    pub default_audio_format: String,
+    #[serde(default = "default_embed_thumbnail")]
     pub embed_thumbnail: bool,
+}
+
+fn default_video_format() -> String {
+    "mp4".to_string()
+}
+
+fn default_audio_format() -> String {
+    "mp3".to_string()
+}
+
+fn default_embed_thumbnail() -> bool {
+    true
+}
+
+impl Default for AppSettings {
+    fn default() -> Self {
+        Self {
+            default_output_path: String::new(),
+            default_format: default_video_format(),
+            default_audio_format: default_audio_format(),
+            embed_thumbnail: default_embed_thumbnail(),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -25,7 +53,7 @@ fn default_timestamp() -> String {
     "1970-01-01T00:00:00Z".to_string()
 }
 
-fn history_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+pub fn history_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
     let dir = app
         .path()
         .app_data_dir()
@@ -34,13 +62,52 @@ fn history_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
     Ok(dir.join("history.json"))
 }
 
-fn settings_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+pub fn settings_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
     let dir = app
         .path()
         .app_data_dir()
         .map_err(|e| format!("Cannot get app data dir: {e}"))?;
     fs::create_dir_all(&dir).map_err(|e| format!("Cannot create app data dir: {e}"))?;
     Ok(dir.join("settings.json"))
+}
+
+/// Load history items from disk on startup or when needed
+pub fn load_initial_history(app: &AppHandle) -> Vec<HistoryItem> {
+    let path = match history_path(app) {
+        Ok(p) => p,
+        Err(e) => {
+            log::warn!("Failed to resolve history path: {e}");
+            return Vec::new();
+        }
+    };
+
+    if !path.exists() {
+        return Vec::new();
+    }
+
+    let content = match fs::read_to_string(&path) {
+        Ok(c) => c,
+        Err(e) => {
+            log::warn!("Failed to read history file: {e}");
+            return Vec::new();
+        }
+    };
+
+    if let Ok(items) = serde_json::from_str::<Vec<HistoryItem>>(&content) {
+        return items;
+    }
+
+    // Fallback: parse raw array and skip malformed entries
+    if let Ok(raw_arr) = serde_json::from_str::<serde_json::Value>(&content) {
+        if let Some(arr) = raw_arr.as_array() {
+            return arr
+                .iter()
+                .filter_map(|entry| serde_json::from_value::<HistoryItem>(entry.clone()).ok())
+                .collect();
+        }
+    }
+
+    Vec::new()
 }
 
 /// Persist the in-memory history to disk
@@ -58,33 +125,15 @@ pub fn persist_history(app: &AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn get_download_history(app: AppHandle) -> Result<Vec<HistoryItem>, String> {
-    let path = history_path(&app)?;
-    if !path.exists() {
-        return Ok(Vec::new());
+    let disk_items = load_initial_history(&app);
+
+    // Keep in-memory state in sync
+    if let Some(state) = app.try_state::<crate::AppState>() {
+        let mut history = state.download_history.lock().unwrap();
+        *history = disk_items.clone();
     }
-    let content = fs::read_to_string(&path).map_err(|e| format!("Read error: {e}"))?;
-    
-    // Try strict parse first
-    if let Ok(items) = serde_json::from_str::<Vec<HistoryItem>>(&content) {
-        return Ok(items);
-    }
-    
-    // Fallback: parse as raw JSON array and skip malformed entries
-    let raw_arr: serde_json::Value = serde_json::from_str(&content)
-        .map_err(|e| format!("Parse error: {e}"))?;
-    
-    if let Some(arr) = raw_arr.as_array() {
-        let items: Vec<HistoryItem> = arr
-            .iter()
-            .filter_map(|entry| {
-                // Try to deserialize each entry, silently skip bad ones
-                serde_json::from_value::<HistoryItem>(entry.clone()).ok()
-            })
-            .collect();
-        Ok(items)
-    } else {
-        Ok(Vec::new())
-    }
+
+    Ok(disk_items)
 }
 
 #[tauri::command]
@@ -104,7 +153,20 @@ pub fn save_history_item(app: AppHandle, item: HistoryItem) -> Result<(), String
         .try_state::<crate::AppState>()
         .ok_or("AppState not found")?;
     let mut history = state.download_history.lock().unwrap();
-    history.push(item);
+
+    // If in-memory is empty, reload from disk first to prevent overwriting previous history
+    if history.is_empty() {
+        let disk_items = load_initial_history(&app);
+        if !disk_items.is_empty() {
+            *history = disk_items;
+        }
+    }
+
+    // Avoid duplicate insertions for the same download ID
+    if !history.iter().any(|h| h.id == item.id) {
+        history.push(item);
+    }
+
     drop(history);
     persist_history(&app)
 }

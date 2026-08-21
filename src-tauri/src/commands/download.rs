@@ -1,8 +1,8 @@
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::path::Path;
+use std::sync::{Arc, LazyLock, Mutex};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
-use tauri_plugin_shell::ShellExt;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DownloadOptions {
@@ -31,13 +31,20 @@ pub struct DownloadProgress {
 /// Global state: map of download_id -> process handle (for cancel)
 pub type ActiveDownloads = Arc<Mutex<HashMap<String, ()>>>;
 
-fn sanitize_filename(filename: &str) -> String {
-    let re = regex::Regex::new(r#"[<>:"/\\|?*]"#).unwrap();
-    re.replace_all(filename, "").to_string()
+static SANITIZE_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
+    regex::Regex::new(r#"[<>:"/\\|?*]"#).unwrap()
+});
+
+static PROGRESS_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
+    regex::Regex::new(r"^([\d.]+)%\|([^|]*)\|([^|]*)\|(.*)$").unwrap()
+});
+
+pub fn sanitize_filename(filename: &str) -> String {
+    SANITIZE_RE.replace_all(filename, "").to_string()
 }
 
 /// Build yt-dlp args from download options
-fn build_args(_download_id: &str, opts: &DownloadOptions, ffmpeg_dir: &str) -> Vec<String> {
+pub fn build_args(_download_id: &str, opts: &DownloadOptions, ffmpeg_dir: &str) -> Vec<String> {
     let mut args: Vec<String> = Vec::new();
 
     // Progress output format we can parse
@@ -46,19 +53,20 @@ fn build_args(_download_id: &str, opts: &DownloadOptions, ffmpeg_dir: &str) -> V
     args.push("--progress-template".to_string());
     args.push("%(progress._percent_str)s|%(progress._speed_str)s|%(progress._eta_str)s|%(progress.filename)s".to_string());
     args.push("--no-warnings".to_string());
+    args.push("--no-check-certificates".to_string());
 
-    // Parallel concurrent fragment downloads (higher = faster, especially for YouTube)
+    // YouTube extractor args to prevent HTTP 403 Forbidden on video fragment streams
+    args.push("--extractor-args".to_string());
+    args.push("youtube:player_client=android,web,ios".to_string());
+
+    // Safe fragment concurrency
     args.push("-N".to_string());
-    args.push("16".to_string());
-    args.push("--concurrent-fragments".to_string());
-    args.push("16".to_string());
-
-    // Larger HTTP chunk size for faster throughput on high-bandwidth connections
-    args.push("--http-chunk-size".to_string());
-    args.push("10M".to_string());
+    args.push("4".to_string());
     
-    // Better robustness for fragments
+    // Robustness for fragments
     args.push("--fragment-retries".to_string());
+    args.push("10".to_string());
+    args.push("--retries".to_string());
     args.push("10".to_string());
 
     // Filename sanitization
@@ -68,9 +76,17 @@ fn build_args(_download_id: &str, opts: &DownloadOptions, ffmpeg_dir: &str) -> V
     if opts.is_audio {
         args.push("-x".to_string());
         args.push("--audio-format".to_string());
-        args.push("mp3".to_string());
+        
+        let valid_audio_formats = ["mp3", "m4a", "opus", "flac", "wav", "aac", "vorbis"];
+        let audio_format = if valid_audio_formats.contains(&opts.output_format.to_lowercase().as_str()) {
+            opts.output_format.to_lowercase()
+        } else {
+            "mp3".to_string()
+        };
+        
+        args.push(audio_format);
         args.push("--audio-quality".to_string());
-        args.push("0".to_string());
+        args.push("0".to_string()); // 0 = best quality in yt-dlp
     } else if opts.format_id == "bestvideo+bestaudio/best" || opts.format_id == "best" {
         args.push("-f".to_string());
         args.push("bestvideo+bestaudio/best".to_string());
@@ -78,7 +94,11 @@ fn build_args(_download_id: &str, opts: &DownloadOptions, ffmpeg_dir: &str) -> V
         args.push(opts.output_format.clone());
     } else {
         args.push("-f".to_string());
-        args.push(format!("{}+bestaudio/best", opts.format_id));
+        if opts.format_id.contains('+') || opts.format_id.contains('/') {
+            args.push(opts.format_id.clone());
+        } else {
+            args.push(format!("{}+bestaudio/best", opts.format_id));
+        }
         args.push("--merge-output-format".to_string());
         args.push(opts.output_format.clone());
     }
@@ -90,24 +110,19 @@ fn build_args(_download_id: &str, opts: &DownloadOptions, ffmpeg_dir: &str) -> V
         sanitize_filename(&opts.custom_filename)
     };
 
-    // Output path with Video ID for uniqueness to prevent parallel download collisions
-    let output_template = if custom_name.is_empty() {
-        if opts.output_path.is_empty() {
-            "%(title)s [%(id)s].%(ext)s".to_string()
-        } else {
-            format!("{}\\%(title)s [%(id)s].%(ext)s", opts.output_path.trim_end_matches('\\'))
-        }
+    // Cross-platform output path construction using std::path::Path
+    let template_name = if custom_name.is_empty() {
+        "%(title)s [%(id)s].%(ext)s".to_string()
     } else {
-        if opts.output_path.is_empty() {
-            format!("{}.%(ext)s", custom_name)
-        } else {
-            format!(
-                "{}\\{}.%(ext)s",
-                opts.output_path.trim_end_matches('\\'),
-                custom_name
-            )
-        }
+        format!("{}.%(ext)s", custom_name)
     };
+
+    let output_template = if opts.output_path.trim().is_empty() {
+        template_name
+    } else {
+        Path::new(&opts.output_path).join(template_name).to_string_lossy().to_string()
+    };
+
     args.push("-o".to_string());
     args.push(output_template);
 
@@ -123,37 +138,15 @@ fn build_args(_download_id: &str, opts: &DownloadOptions, ffmpeg_dir: &str) -> V
         args.push(opts.subtitle_language.clone());
     }
 
-
     // ffmpeg location
-    args.push("--ffmpeg-location".to_string());
-    args.push(ffmpeg_dir.to_string());
+    if !ffmpeg_dir.is_empty() {
+        args.push("--ffmpeg-location".to_string());
+        args.push(ffmpeg_dir.to_string());
+    }
 
     args.push(opts.url.clone());
 
     args
-}
-
-#[allow(dead_code)]
-fn parse_progress_line(line: &str) -> Option<(f64, String, String, String)> {
-    // Expected format: "  42.0%|1.23MiB/s|00:42|/path/to/file.mp4"
-    let parts: Vec<&str> = line.splitn(4, '|').collect();
-    if parts.len() < 3 {
-        return None;
-    }
-    let percent_str = parts[0].trim().trim_end_matches('%');
-    let percent = percent_str.parse::<f64>().ok()?;
-    let speed = parts[1].trim().to_string();
-    let eta = parts[2].trim().to_string();
-    let filename = if parts.len() > 3 {
-        std::path::Path::new(parts[3].trim())
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or(parts[3].trim())
-            .to_string()
-    } else {
-        String::new()
-    };
-    Some((percent, speed, eta, filename))
 }
 
 #[tauri::command]
@@ -186,47 +179,19 @@ pub async fn start_download(
     let permit = state.download_semaphore.clone().acquire_owned().await
         .map_err(|e| format!("Failed to acquire download slot: {e}"))?;
 
-    let resolver = app.path();
-    let resource_dir = resolver
-        .resource_dir()
-        .map_err(|e| format!("Failed to get resource dir: {e}"))?;
-    
-    // Resolve ffmpeg path dynamically to handle both Dev and Prod differences
-    let mut ffmpeg_dir = resource_dir.clone();
-    ffmpeg_dir.push("resources");
-    
-    let mut exe_test = ffmpeg_dir.clone();
-    exe_test.push(if cfg!(windows) { "ffmpeg.exe" } else { "ffmpeg" });
-    
-    // If ffmpeg executable is not inside the 'resources' subfolder,
-    // it means Tauri flattened it into the root resource_dir (production behavior).
-    if !exe_test.exists() {
-        let mut alt_test = resource_dir.clone();
-        alt_test.push(if cfg!(windows) { "ffmpeg.exe" } else { "ffmpeg" });
-        if alt_test.exists() {
-            ffmpeg_dir = resource_dir.clone();
-        }
-    }
-    
-    let ffmpeg_dir_str = ffmpeg_dir.to_string_lossy().to_string();
-
-    let args = build_args(&download_id, &opts, &ffmpeg_dir_str);
+    let ffmpeg_dir = crate::commands::engine::get_ffmpeg_dir(&app).unwrap_or_default();
+    let args = build_args(&download_id, &opts, &ffmpeg_dir);
 
     tokio::spawn(async move {
         // Hold permit until finished
         let _permit = permit;
 
-        let res = app_handle
-            .shell()
-            .sidecar("yt-dlp")
-            .map_err(|e| format!("Failed to spawn sidecar: {e}"))
-            .and_then(|sidecar| {
-                Ok(sidecar.args(args))
-            });
+        let cmd_res = crate::commands::engine::get_ytdlp_command(&app_handle)
+            .map(|cmd| cmd.args(args));
 
-        match res {
-            Ok(sidecar) => {
-                let (mut rx, child_handle) = match sidecar.spawn() {
+        match cmd_res {
+            Ok(cmd) => {
+                let (mut rx, child_handle) = match cmd.spawn() {
                     Ok(pair) => pair,
                     Err(e) => {
                         let _ = app_handle.emit(
@@ -251,9 +216,6 @@ pub async fn start_download(
                     downloads.insert(download_id_for_event.clone(), child_handle);
                 }
 
-                // Progress regex: 42.0%|1.23MiB/s|00:42|filename
-                let progress_re = regex::Regex::new(r"([\d.]+)%\|([\w./s]+)\|([\d:]+)\|(.*)").unwrap();
-
                 let mut final_filename = String::new();
                 let mut success = true;
                 let mut error_msg = String::new();
@@ -262,12 +224,15 @@ pub async fn start_download(
                     match event {
                         tauri_plugin_shell::process::CommandEvent::Stdout(line_bytes) => {
                             let line = String::from_utf8_lossy(&line_bytes);
-                            if let Some(caps) = progress_re.captures(&line) {
+                            let trimmed = line.trim();
+                            if let Some(caps) = PROGRESS_RE.captures(trimmed) {
                                 let percent = caps[1].parse::<f64>().unwrap_or(0.0);
-                                let speed = caps[2].to_string();
-                                let eta = caps[3].to_string();
-                                let filename = caps[4].to_string();
-                                final_filename = filename.clone();
+                                let speed = caps[2].trim().to_string();
+                                let eta = caps[3].trim().to_string();
+                                let filename = caps[4].trim().to_string();
+                                if !filename.is_empty() {
+                                    final_filename = filename.clone();
+                                }
 
                                 let _ = app_handle.emit(
                                     "download://progress",
@@ -285,11 +250,16 @@ pub async fn start_download(
                         tauri_plugin_shell::process::CommandEvent::Stderr(line_bytes) => {
                             let line = String::from_utf8_lossy(&line_bytes);
                             log::warn!("[yt-dlp stderr] {line}");
+                            if line.contains("HTTP Error 403") {
+                                error_msg = "HTTP 403 Forbidden: YouTube stream access denied".to_string();
+                            }
                         }
                         tauri_plugin_shell::process::CommandEvent::Terminated(payload) => {
                             if payload.code != Some(0) {
                                 success = false;
-                                error_msg = format!("Exit code {}", payload.code.unwrap_or(-1));
+                                if error_msg.is_empty() {
+                                    error_msg = format!("Exit code {}", payload.code.unwrap_or(-1));
+                                }
                             }
                             break;
                         }
@@ -317,7 +287,7 @@ pub async fn start_download(
                         },
                     );
 
-                    // Save to history
+                    // Save to history (safe persistence guaranteed)
                     let history_item = crate::commands::settings::HistoryItem {
                         id: download_id_for_event.clone(),
                         title: opts_for_history.title.clone(),
@@ -375,3 +345,69 @@ pub async fn cancel_download(
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sanitize_filename() {
+        assert_eq!(sanitize_filename("valid_filename"), "valid_filename");
+        assert_eq!(sanitize_filename("file/with\\bad:chars*?\"<>|"), "filewithbadchars");
+        assert_eq!(sanitize_filename("cool-song (2024) [feat. artist]"), "cool-song (2024) [feat. artist]");
+    }
+
+    #[test]
+    fn test_progress_regex_parsing() {
+        let line = "45.6%|12.3MiB/s|00:15|video.mp4";
+        let caps = PROGRESS_RE.captures(line).expect("Should match valid progress line");
+        assert_eq!(&caps[1], "45.6");
+        assert_eq!(&caps[2], "12.3MiB/s");
+        assert_eq!(&caps[3], "00:15");
+        assert_eq!(&caps[4], "video.mp4");
+    }
+
+    #[test]
+    fn test_build_args_audio_opus() {
+        let opts = DownloadOptions {
+            title: "Test Track".to_string(),
+            url: "https://example.com/watch".to_string(),
+            format_id: "bestaudio".to_string(),
+            is_audio: true,
+            output_path: "C:\\Downloads".to_string(),
+            custom_filename: "".to_string(),
+            output_format: "opus".to_string(),
+            embed_thumbnail: true,
+            download_subtitles: false,
+            subtitle_language: "en".to_string(),
+        };
+        let args = build_args("test_id", &opts, "");
+        assert!(args.contains(&"-x".to_string()));
+        assert!(args.contains(&"--audio-format".to_string()));
+        assert!(args.contains(&"opus".to_string()));
+        assert!(args.contains(&"--extractor-args".to_string()));
+    }
+
+    #[test]
+    fn test_build_args_video_custom_name() {
+        let opts = DownloadOptions {
+            title: "Awesome Video".to_string(),
+            url: "https://example.com/watch".to_string(),
+            format_id: "137".to_string(),
+            is_audio: false,
+            output_path: "".to_string(),
+            custom_filename: "my_custom_clip".to_string(),
+            output_format: "mp4".to_string(),
+            embed_thumbnail: false,
+            download_subtitles: true,
+            subtitle_language: "es".to_string(),
+        };
+        let args = build_args("test_id", &opts, "/usr/bin/ffmpeg");
+        assert!(args.contains(&"-f".to_string()));
+        assert!(args.contains(&"137+bestaudio/best".to_string()));
+        assert!(args.contains(&"--merge-output-format".to_string()));
+        assert!(args.contains(&"mp4".to_string()));
+        assert!(args.contains(&"--write-sub".to_string()));
+        assert!(args.contains(&"es".to_string()));
+        assert!(args.contains(&"--ffmpeg-location".to_string()));
+    }
+}

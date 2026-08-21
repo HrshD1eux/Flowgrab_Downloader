@@ -1,5 +1,3 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
 # dependencies
 /node_modules
 /.pnp
@@ -20,6 +18,17 @@
 # production
 /build
 
+# Rust / Tauri
+src-tauri/target/
+src-tauri/gen/
+
+# Logs and test dumps
+*.log
+*.log*
+test_*.txt
+*_output.txt
+*_dump.txt
+
 # misc
 .DS_Store
 *.pem
@@ -30,7 +39,7 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files
 .env*
 
 # vercel

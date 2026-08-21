@@ -66,6 +66,7 @@ interface RustHistoryItem {
 export interface AppSettings {
     default_output_path: string;
     default_format: string;
+    default_audio_format: string;
     embed_thumbnail: boolean;
 }
 
@@ -163,17 +164,24 @@ export async function getDownloadHistory(): Promise<DownloadHistoryItem[]> {
     }));
 }
 
-/** Clear download history */
+/** Cancel an active download by ID */
 export async function cancelDownload(downloadId: string): Promise<void> {
     await invoke('cancel_download', { downloadId });
 }
 
+/** Clear download history */
 export async function clearDownloadHistory(): Promise<void> {
     await invoke<void>("clear_download_history");
 }
 
+/** Update the yt-dlp binary */
 export async function updateYtDlp(): Promise<string> {
     return await invoke('update_yt_dlp');
+}
+
+/** Get installed yt-dlp version */
+export async function getYtDlpVersion(): Promise<string> {
+    return await invoke<string>('get_ytdlp_version');
 }
 
 /** Get saved settings */
@@ -192,4 +200,72 @@ export async function openFolderDialog(): Promise<string | null> {
     const result = await open({ directory: true, multiple: false });
     if (typeof result === "string") return result;
     return null;
+}
+
+export interface AppUpdateInfo {
+    hasUpdate: boolean;
+    currentVersion: string;
+    latestVersion: string;
+    releaseName: string;
+    releaseNotes: string;
+    releaseUrl: string;
+    downloadUrl?: string;
+    publishedAt: string;
+}
+
+/** Query GitHub Releases API for desktop app updates */
+export async function checkAppUpdate(repo = "HrshD1eux/Video_Downloader"): Promise<AppUpdateInfo> {
+    const currentVersion = "0.1.1";
+    try {
+        const res = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, {
+            headers: {
+                Accept: "application/vnd.github.v3+json",
+            },
+        });
+        if (!res.ok) {
+            throw new Error(`GitHub API returned status ${res.status}`);
+        }
+        const data = await res.json();
+        const latestTag = (data.tag_name || "").replace(/^v/, "");
+        
+        const assets = data.assets || [];
+        const installerAsset = assets.find((a: { name: string; browser_download_url: string }) => 
+            a.name.endsWith(".exe") || a.name.endsWith(".msi")
+        );
+
+        const curParts = currentVersion.split('.').map(Number);
+        const latParts = latestTag.split('.').map(Number);
+        let hasUpdate = false;
+        for (let i = 0; i < Math.max(curParts.length, latParts.length); i++) {
+            const cur = curParts[i] || 0;
+            const lat = latParts[i] || 0;
+            if (lat > cur) {
+                hasUpdate = true;
+                break;
+            } else if (lat < cur) {
+                break;
+            }
+        }
+
+        return {
+            hasUpdate,
+            currentVersion,
+            latestVersion: latestTag || currentVersion,
+            releaseName: data.name || data.tag_name || "Latest Release",
+            releaseNotes: data.body || "No changelog provided.",
+            releaseUrl: data.html_url || `https://github.com/${repo}/releases/latest`,
+            downloadUrl: installerAsset ? installerAsset.browser_download_url : data.html_url,
+            publishedAt: data.published_at || "",
+        };
+    } catch (e) {
+        return {
+            hasUpdate: false,
+            currentVersion,
+            latestVersion: currentVersion,
+            releaseName: "Up to date",
+            releaseNotes: String(e),
+            releaseUrl: `https://github.com/${repo}/releases`,
+            publishedAt: "",
+        };
+    }
 }

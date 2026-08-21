@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { ProgressBar } from "@/components/ui/ProgressBar";
-import { Download, RotateCcw, XCircle } from "lucide-react";
+import { Download, RotateCcw, XCircle, CheckCircle2, AlertCircle } from "lucide-react";
 
 interface DownloadSectionProps {
   handleDownload: () => void;
@@ -35,44 +35,39 @@ export default function DownloadSection({
   const statusText = {
     idle: 'Ready to download',
     downloading: `Downloading... ${Math.round(downloadProgress)}%`,
-    completed: '✅ Download completed!',
-    error: `❌ ${errorMessage || 'An error occurred.'}`,
+    completed: 'Download completed successfully',
+    error: errorMessage || 'An error occurred during download.',
   }[status];
 
-  const progressColor =
-    status === 'completed' ? 'bg-green-500' :
-      status === 'error' ? 'bg-red-500' :
-        undefined;
-
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pt-1">
       {status === 'completed' || status === 'error' ? (
         <Button
           size="lg"
-          className="w-full text-lg font-bold rounded-2xl h-14 transition-all hover:shadow-lg active:scale-[0.98]"
+          className="w-full text-sm font-semibold rounded-2xl h-12 transition-all active:scale-[0.99]"
           onClick={onReset}
-          variant="secondary"
+          variant="outline"
         >
-          <RotateCcw className="mr-2 h-6 w-6" />
-          Download Another Video
+          <RotateCcw className="mr-2 h-4 w-4" />
+          Download Another Media
         </Button>
       ) : (
         <div className="flex gap-2">
           <Button
             size="lg"
-            className="flex-1 text-xl font-bold rounded-2xl h-16 transition-all hover:shadow-xl active:scale-[0.99] bg-gradient-to-r from-primary to-primary/80"
+            className="flex-1 text-sm font-semibold rounded-2xl h-12 transition-all bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm active:scale-[0.99]"
             onClick={handleDownload}
             disabled={!isFormatSelected || isDownloading}
           >
             {isDownloading ? (
               <>
-                <div className="mr-3 h-5 w-5 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
-                Downloading...
+                <div className="mr-2.5 h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                Downloading Media...
               </>
             ) : (
               <>
-                <Download className="mr-3 h-6 w-6" />
-                Start Download
+                <Download className="mr-2 h-4 w-4" />
+                Download Now
               </>
             )}
           </Button>
@@ -81,33 +76,43 @@ export default function DownloadSection({
             <Button
               size="lg"
               variant="destructive"
-              className="px-6 rounded-2xl h-16 transition-all hover:shadow-lg active:scale-[0.98]"
+              className="px-5 rounded-2xl h-12 transition-all active:scale-[0.98] font-semibold text-xs"
               onClick={onCancel}
               title="Stop current download"
             >
-              <XCircle className="h-6 w-6" />
-              <span className="ml-2 font-bold">Stop</span>
+              <XCircle className="h-4 w-4 mr-1.5" />
+              Stop
             </Button>
           )}
         </div>
       )}
 
-      <div className="space-y-2">
-        <div className="flex justify-between items-center text-sm text-muted-foreground">
-          <span>Status</span>
-          <span className={status === 'completed' ? 'text-green-400' : status === 'error' ? 'text-red-400' : ''}>
+      <div className="space-y-2 bg-muted/20 p-3.5 rounded-2xl border border-border">
+        <div className="flex justify-between items-center text-xs">
+          <span className="font-semibold text-foreground">Status</span>
+          <span className={`font-medium flex items-center gap-1 ${
+            status === 'completed' ? 'text-emerald-500' :
+            status === 'error' ? 'text-destructive' :
+            'text-muted-foreground'
+          }`}>
+            {status === 'completed' && <CheckCircle2 className="h-3.5 w-3.5" />}
+            {status === 'error' && <AlertCircle className="h-3.5 w-3.5" />}
             {statusText}
           </span>
         </div>
 
         <ProgressBar
           value={status === 'error' ? 100 : downloadProgress}
-          className={`w-full h-3 rounded-full ${progressColor ?? ''}`}
+          className={`w-full h-2 rounded-full ${
+            status === 'completed' ? 'bg-emerald-500' :
+            status === 'error' ? 'bg-destructive' :
+            ''
+          }`}
         />
 
         {/* Speed + ETA row while downloading */}
         {isDownloading && (speed || eta) && (
-          <div className="flex justify-between text-xs text-muted-foreground">
+          <div className="flex justify-between text-[11px] text-muted-foreground font-mono pt-1">
             <span>{speed && `Speed: ${speed}`}</span>
             <span>{eta && `ETA: ${eta}`}</span>
           </div>
@@ -115,8 +120,8 @@ export default function DownloadSection({
 
         {/* Filename while downloading */}
         {isDownloading && filename && (
-          <p className="text-xs text-muted-foreground truncate" title={filename}>
-            📁 {filename}
+          <p className="text-[11px] text-muted-foreground truncate font-mono" title={filename}>
+            📄 {filename}
           </p>
         )}
       </div>

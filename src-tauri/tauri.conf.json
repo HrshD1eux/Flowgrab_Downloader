@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Video Downloader",
   "version": "0.1.1",
-  "identifier": "com.videodownloader.app",
+  "identifier": "com.hrshd1eux.videodownloader",
   "build": {
     "frontendDist": "../out",
     "devUrl": "http://localhost:9002",
@@ -13,8 +13,8 @@
     "windows": [
       {
         "title": "Video Downloader",
-        "width": 1000,
-        "height": 700,
+        "width": 1050,
+        "height": 720,
         "minWidth": 800,
         "minHeight": 600,
         "resizable": true,

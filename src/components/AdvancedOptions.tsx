@@ -17,12 +17,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useState } from "react";
 import type { AdvancedOptions as AdvancedOptionsType } from "@/types";
-import { Separator } from "@/components/ui/separator";
-import { FolderOpen, RefreshCw } from "lucide-react";
-import { updateYtDlp } from "@/lib/tauri";
-import { useToast } from "@/hooks/use-toast";
+import { FolderOpen } from "lucide-react";
 
 interface AdvancedOptionsProps {
   options: AdvancedOptionsType;
@@ -37,40 +33,18 @@ export default function AdvancedOptions({
   isDownloading,
   onBrowseFolder,
 }: AdvancedOptionsProps) {
-  const { toast } = useToast();
-  const [isUpdating, setIsUpdating] = useState(false);
-
-  const handleUpdate = async () => {
-    setIsUpdating(true);
-    try {
-      const result = await updateYtDlp();
-      toast({
-        title: "Engine Update",
-        description: result || "yt-dlp has been updated successfully.",
-      });
-    } catch (err) {
-      toast({
-        title: "Update Failed",
-        description: String(err),
-        variant: "destructive",
-      });
-    } finally {
-      setIsUpdating(false);
-    }
-  };
-
   return (
     <Accordion type="single" collapsible className="w-full">
-      <AccordionItem value="advanced-options">
-        <AccordionTrigger className="text-sm font-medium">
-          Advanced Options
+      <AccordionItem value="advanced-options" className="border-border">
+        <AccordionTrigger className="text-xs font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground py-3">
+          Download Settings & Metadata
         </AccordionTrigger>
         <AccordionContent>
-          <div className="grid gap-6 pt-4">
+          <div className="grid gap-4 pt-2">
 
             {/* Output Folder */}
-            <div className="grid gap-2">
-              <Label>Output Folder</Label>
+            <div className="grid gap-1.5">
+              <Label className="text-xs font-semibold">Output Directory</Label>
               <div className="flex gap-2">
                 <Input
                   placeholder="Default download folder"
@@ -79,7 +53,7 @@ export default function AdvancedOptions({
                     setOptions({ ...options, outputPath: e.target.value })
                   }
                   disabled={isDownloading}
-                  className="flex-1 rounded-xl"
+                  className="flex-1 rounded-xl bg-muted/30 border-border h-9 text-xs"
                   readOnly
                 />
                 <Button
@@ -89,7 +63,7 @@ export default function AdvancedOptions({
                   disabled={isDownloading}
                   type="button"
                   title="Browse folder"
-                  className="rounded-xl"
+                  className="rounded-xl h-9 w-9 border-border hover:bg-muted"
                 >
                   <FolderOpen className="h-4 w-4" />
                 </Button>
@@ -97,25 +71,25 @@ export default function AdvancedOptions({
             </div>
 
             {/* Custom Filename */}
-            <div className="grid gap-2">
-              <Label htmlFor="custom-filename">Custom Filename</Label>
+            <div className="grid gap-1.5">
+              <Label htmlFor="custom-filename" className="text-xs font-semibold">Custom Filename</Label>
               <Input
                 id="custom-filename"
                 name="video-filename-custom"
                 autoComplete="off"
-                placeholder="e.g. my-cool-video (leave blank for auto)"
+                placeholder="Leave blank for original title"
                 value={options.customFilename}
                 onChange={(e) =>
                   setOptions({ ...options, customFilename: e.target.value })
                 }
                 disabled={isDownloading}
-                className="rounded-xl"
+                className="rounded-xl bg-muted/30 border-border h-9 text-xs"
               />
             </div>
 
-            {/* Output Format — always visible */}
-            <div className="grid gap-2">
-              <Label>Output Container Format</Label>
+            {/* Output Format */}
+            <div className="grid gap-1.5">
+              <Label className="text-xs font-semibold">Output Container Format</Label>
               <Select
                 value={options.outputFormat}
                 onValueChange={(value: string) =>
@@ -123,20 +97,25 @@ export default function AdvancedOptions({
                 }
                 disabled={isDownloading}
               >
-                <SelectTrigger className="rounded-xl">
+                <SelectTrigger className="rounded-xl bg-muted/30 border-border h-9 text-xs">
                   <SelectValue placeholder="Format" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="mp4">MP4</SelectItem>
-                  <SelectItem value="mkv">MKV</SelectItem>
-                  <SelectItem value="webm">WEBM</SelectItem>
+                <SelectContent className="rounded-xl">
+                  <SelectItem value="mp4">MP4 (Video Container)</SelectItem>
+                  <SelectItem value="mkv">MKV (Matroska / Subtitle friendly)</SelectItem>
+                  <SelectItem value="webm">WEBM (Modern Web VP9/AV1)</SelectItem>
+                  <SelectItem value="opus">OPUS (Audio)</SelectItem>
+                  <SelectItem value="mp3">MP3 (Universal Audio)</SelectItem>
+                  <SelectItem value="m4a">M4A (Apple Audio)</SelectItem>
+                  <SelectItem value="flac">FLAC (Lossless Audio)</SelectItem>
+                  <SelectItem value="wav">WAV (PCM Audio)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Checkboxes */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex items-center space-x-2">
+            {/* Toggles */}
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <div className="flex items-center space-x-2 bg-muted/20 p-2.5 rounded-xl border border-border">
                 <Checkbox
                   id="embed-thumbnail"
                   checked={options.embedThumbnail}
@@ -145,11 +124,11 @@ export default function AdvancedOptions({
                   }
                   disabled={isDownloading}
                 />
-                <Label htmlFor="embed-thumbnail" className="text-sm font-normal">
-                  Embed thumbnail
+                <Label htmlFor="embed-thumbnail" className="text-xs font-medium cursor-pointer">
+                  Embed Thumbnail
                 </Label>
               </div>
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 bg-muted/20 p-2.5 rounded-xl border border-border">
                 <Checkbox
                   id="download-subtitles"
                   checked={options.downloadSubtitles}
@@ -158,16 +137,16 @@ export default function AdvancedOptions({
                   }
                   disabled={isDownloading}
                 />
-                <Label htmlFor="download-subtitles" className="text-sm font-normal">
-                  Download subtitles
+                <Label htmlFor="download-subtitles" className="text-xs font-medium cursor-pointer">
+                  Download Subtitles
                 </Label>
               </div>
             </div>
 
-            {/* Subtitle language — only when subtitles enabled */}
+            {/* Subtitle language */}
             {options.downloadSubtitles && (
-              <div className="grid gap-2">
-                <Label>Subtitle Language</Label>
+              <div className="grid gap-1.5 animate-fade-in">
+                <Label className="text-xs font-semibold">Subtitle Language</Label>
                 <Select
                   value={options.subtitleLanguage}
                   onValueChange={(value: string) =>
@@ -175,10 +154,10 @@ export default function AdvancedOptions({
                   }
                   disabled={isDownloading}
                 >
-                  <SelectTrigger className="rounded-xl">
+                  <SelectTrigger className="rounded-xl bg-muted/30 border-border h-9 text-xs">
                     <SelectValue placeholder="Language" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="rounded-xl">
                     <SelectItem value="en">English</SelectItem>
                     <SelectItem value="es">Spanish</SelectItem>
                     <SelectItem value="fr">French</SelectItem>
@@ -192,26 +171,9 @@ export default function AdvancedOptions({
               </div>
             )}
 
-            <Separator className="my-2" />
-
-            <div className="flex flex-col gap-2">
-              <Label className="text-xs text-muted-foreground">Engine Maintenance</Label>
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full gap-2 rounded-xl"
-                onClick={handleUpdate}
-                disabled={isUpdating || isDownloading}
-              >
-                <RefreshCw className={`h-4 w-4 ${isUpdating ? 'animate-spin' : ''}`} />
-                {isUpdating ? "Checking for updates..." : "Check for Engine Updates"}
-              </Button>
-            </div>
-
           </div>
         </AccordionContent>
       </AccordionItem>
     </Accordion>
   );
 }
-

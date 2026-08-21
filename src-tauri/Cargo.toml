@@ -1,10 +1,10 @@
 [package]
-name = "app"
+name = "video_downloader"
 version = "0.1.1"
-description = "Video Downloader - A modern yt-dlp GUI"
-authors = ["you"]
-license = ""
-repository = ""
+description = "A modern, high-performance desktop video and audio downloader powered by yt-dlp"
+authors = ["HrshD1eux"]
+license = "MIT"
+repository = "https://github.com/HrshD1eux/Video_Downloader"
 edition = "2021"
 rust-version = "1.77.2"
 

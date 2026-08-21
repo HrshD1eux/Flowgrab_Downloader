@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useImperativeHandle, forwardRef } from "react";
+import { useState, useCallback, useImperativeHandle, forwardRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -53,14 +53,14 @@ const BatchUrlManager = forwardRef<BatchUrlManagerHandle, BatchUrlManagerProps>(
         const [items, setItems] = useState<BatchVideoItem[]>([]);
         const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-        const notifyParent = useCallback((updated: BatchVideoItem[]) => {
+        // Keep parent notified whenever items or default quality changes
+        useEffect(() => {
             const targets: BatchDownloadTarget[] = [];
-            for (const item of updated) {
+            for (const item of items) {
                 if (item.status !== "ready") continue;
                 const fmtId = item.overrideFormatId ?? defaultFormatId ?? "bestvideo+bestaudio/best";
                 const isAudio = item.overrideFormatId ? item.overrideIsAudio : defaultIsAudio;
                 if (item.isPlaylist && item.entries.length > 0) {
-                    // Flatten selected playlist entries into individual targets
                     for (const entry of item.entries) {
                         if (item.selectedEntryUrls.includes(entry.url)) {
                             targets.push({ url: entry.url, title: entry.title, formatId: fmtId, isAudio });
@@ -70,9 +70,8 @@ const BatchUrlManager = forwardRef<BatchUrlManagerHandle, BatchUrlManagerProps>(
                     targets.push({ url: item.url, title: item.title, formatId: fmtId, isAudio });
                 }
             }
-            // Defer to avoid setState-during-render when called inside setItems updater
-            setTimeout(() => onTargetsChange(targets), 0);
-        }, [defaultFormatId, defaultIsAudio, onTargetsChange]);
+            onTargetsChange(targets);
+        }, [items, defaultFormatId, defaultIsAudio, onTargetsChange]);
 
         const analyzeUrls = useCallback(async (overrideText?: string) => {
             const text = overrideText ?? inputText;
@@ -133,19 +132,17 @@ const BatchUrlManager = forwardRef<BatchUrlManagerHandle, BatchUrlManagerProps>(
                             videoFormats: r.videoFormats,
                             audioFormats: r.audioFormats,
                             status: "ready",
-                            // Auto-expand playlists so user sees the video list immediately
                             expanded: !!r.isPlaylist && (r.entries?.length ?? 0) > 0,
                         };
                     } else {
                         next[i] = { ...next[i], error: String(result.reason), status: "error" };
                     }
                 });
-                notifyParent(next);
                 return next;
             });
 
             setIsAnalyzing(false);
-        }, [inputText, items, notifyParent]);
+        }, [inputText, items]);
 
         // Expose analyzeCurrentInput so parent can trigger it
         useImperativeHandle(ref, () => ({
@@ -155,48 +152,32 @@ const BatchUrlManager = forwardRef<BatchUrlManagerHandle, BatchUrlManagerProps>(
         }), [analyzeUrls, inputText]);
 
         const removeItem = (id: string) => {
-            setItems(prev => {
-                const next = prev.filter(i => i.id !== id);
-                notifyParent(next);
-                return next;
-            });
+            setItems(prev => prev.filter(i => i.id !== id));
         };
 
         const setOverrideFormat = (id: string, formatId: string, isAudio: boolean) => {
-            setItems(prev => {
-                const next = prev.map(i =>
-                    i.id === id
-                        ? { ...i, overrideFormatId: formatId === "__default" ? null : formatId, overrideIsAudio: isAudio }
-                        : i
-                );
-                notifyParent(next);
-                return next;
-            });
+            setItems(prev => prev.map(i =>
+                i.id === id
+                    ? { ...i, overrideFormatId: formatId === "__default" ? null : formatId, overrideIsAudio: isAudio }
+                    : i
+            ));
         };
 
         const toggleEntrySelection = (itemId: string, entryUrl: string) => {
-            setItems(prev => {
-                const next = prev.map(item => {
-                    if (item.id !== itemId) return item;
-                    const sel = item.selectedEntryUrls.includes(entryUrl)
-                        ? item.selectedEntryUrls.filter(u => u !== entryUrl)
-                        : [...item.selectedEntryUrls, entryUrl];
-                    return { ...item, selectedEntryUrls: sel };
-                });
-                notifyParent(next);
-                return next;
-            });
+            setItems(prev => prev.map(item => {
+                if (item.id !== itemId) return item;
+                const sel = item.selectedEntryUrls.includes(entryUrl)
+                    ? item.selectedEntryUrls.filter(u => u !== entryUrl)
+                    : [...item.selectedEntryUrls, entryUrl];
+                return { ...item, selectedEntryUrls: sel };
+            }));
         };
 
         const toggleAllEntries = (itemId: string, selectAll: boolean) => {
-            setItems(prev => {
-                const next = prev.map(item => {
-                    if (item.id !== itemId) return item;
-                    return { ...item, selectedEntryUrls: selectAll ? item.entries.map(e => e.url) : [] };
-                });
-                notifyParent(next);
-                return next;
-            });
+            setItems(prev => prev.map(item => {
+                if (item.id !== itemId) return item;
+                return { ...item, selectedEntryUrls: selectAll ? item.entries.map(e => e.url) : [] };
+            }));
         };
 
         const toggleExpanded = (id: string) => {
@@ -249,7 +230,7 @@ const BatchUrlManager = forwardRef<BatchUrlManagerHandle, BatchUrlManagerProps>(
                             <Button
                                 size="sm" variant="ghost"
                                 className="h-8 text-xs text-destructive hover:text-destructive gap-2 font-black uppercase tracking-wider rounded-xl hover:bg-destructive/5"
-                                onClick={() => { setItems([]); setTimeout(() => onTargetsChange([]), 0); }}
+                                onClick={() => setItems([])}
                             >
                                 <Trash2 className="h-3.5 w-3.5" /> Clear All
                             </Button>
@@ -294,7 +275,7 @@ const BatchUrlManager = forwardRef<BatchUrlManagerHandle, BatchUrlManagerProps>(
                                                     <Select
                                                         value={item.overrideFormatId ?? "__default"}
                                                         onValueChange={val => {
-                                                            const isAudio = item.audioFormats.some(f => f.formatId === val);
+                                                             const isAudio = item.audioFormats.some(f => f.formatId === val);
                                                             setOverrideFormat(item.id, val, isAudio);
                                                         }}
                                                     >
@@ -312,7 +293,7 @@ const BatchUrlManager = forwardRef<BatchUrlManagerHandle, BatchUrlManagerProps>(
                                                 )}
                                             </div>
 
-                                            {/* Playlist expand/collapse toggle — visible text button */}
+                                            {/* Playlist expand/collapse toggle */}
                                             {item.status === "ready" && item.isPlaylist && item.entries.length > 0 && (
                                                 <button
                                                     type="button"
@@ -341,7 +322,7 @@ const BatchUrlManager = forwardRef<BatchUrlManagerHandle, BatchUrlManagerProps>(
                                             <div className="border-t bg-muted/30 px-2 pb-2">
                                                 <div className="flex items-center justify-between py-3">
                                                     <span className="text-sm text-muted-foreground font-bold italic">
-                                                        Select Videos ({item.selectedEntryUrls.length}/{item.entries.length})
+                                                        Select Videos ({item.selectedEntryUrls.length}/${item.entries.length})
                                                     </span>
                                                     <div className="flex gap-4">
                                                         <button

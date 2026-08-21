@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useMemo } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
@@ -10,50 +10,39 @@ import { CheckSquare, Square } from "lucide-react";
 
 interface PlaylistSelectorProps {
     entries: PlaylistItem[];
+    selectedUrls: string[];
     onSelectionChange: (selectedUrls: string[]) => void;
 }
 
-export default function PlaylistSelector({ entries, onSelectionChange }: PlaylistSelectorProps) {
-    const allUrls = entries.map(e => e.url);
-    const [selectedUrls, setSelectedUrls] = useState<string[]>(allUrls);
+export default function PlaylistSelector({ entries, selectedUrls, onSelectionChange }: PlaylistSelectorProps) {
+    const allUrls = useMemo(() => entries.map(e => e.url), [entries]);
+    const isAllSelected = entries.length > 0 && selectedUrls.length === entries.length;
 
-    // Notify parent on mount only, via useEffect to avoid setState-during-render
-    useEffect(() => {
-        onSelectionChange(allUrls);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    const toggleAll = useCallback(() => {
-        if (selectedUrls.length === entries.length) {
-            setSelectedUrls([]);
+    const toggleAll = () => {
+        if (isAllSelected) {
             onSelectionChange([]);
         } else {
-            setSelectedUrls(allUrls);
             onSelectionChange(allUrls);
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedUrls.length, entries.length, allUrls.join(','), onSelectionChange]);
+    };
 
-    // Key fix: compute next state OUTSIDE the setter, then call parent AFTER setState
-    const toggleOne = useCallback((url: string) => {
-        setSelectedUrls(prev => {
-            const next = prev.includes(url)
-                ? prev.filter(u => u !== url)
-                : [...prev, url];
-            // Schedule parent notification in the next event loop tick,
-            // so it runs AFTER this render completes — avoiding setState-during-render
-            setTimeout(() => onSelectionChange(next), 0);
-            return next;
-        });
-    }, [onSelectionChange]);
+    const toggleOne = (url: string) => {
+        if (selectedUrls.includes(url)) {
+            onSelectionChange(selectedUrls.filter(u => u !== url));
+        } else {
+            onSelectionChange([...selectedUrls, url]);
+        }
+    };
 
     return (
         <div className="space-y-4">
             <div className="flex justify-between items-center">
-                <h3 className="text-sm font-medium">Playlist Videos ({selectedUrls.length}/{entries.length} selected)</h3>
+                <h3 className="text-sm font-medium">
+                    Playlist Videos ({selectedUrls.length}/{entries.length} selected)
+                </h3>
                 <Button variant="ghost" size="sm" onClick={toggleAll} className="h-8 gap-2">
-                    {selectedUrls.length === entries.length ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
-                    {selectedUrls.length === entries.length ? "Deselect All" : "Select All"}
+                    {isAllSelected ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+                    {isAllSelected ? "Deselect All" : "Select All"}
                 </Button>
             </div>
 
