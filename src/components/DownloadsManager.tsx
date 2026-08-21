@@ -69,7 +69,10 @@ export default function DownloadsManager({
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [selectedError, setSelectedError] = useState<{ title: string; message: string } | null>(null);
 
-  const activeList = Array.from(activeDownloads.values());
+  // Active queue only displays in-flight, queued, paused, or errored items (completed items live in Download History)
+  const activeList = Array.from(activeDownloads.values()).filter(
+    (i) => i.status !== "completed"
+  );
   const activeCount = activeList.filter(
     (i) => i.status === "downloading" || i.status === "queued"
   ).length;

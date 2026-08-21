@@ -70,6 +70,7 @@ export interface AppSettings {
     default_format: string;
     default_audio_format: string;
     embed_thumbnail: boolean;
+    auto_reset_on_finish?: boolean;
 }
 
 // ── Map Rust response to our frontend types ──

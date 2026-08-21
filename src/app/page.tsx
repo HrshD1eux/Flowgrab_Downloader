@@ -407,9 +407,26 @@ export default function Home() {
         if (progress.status === 'completed') {
           activeDownloads.current.delete(progress.downloadId);
           setHistoryRefreshKey(k => k + 1);
+
+          // Remove completed task from active map after 2 seconds
+          setTimeout(() => {
+            setBatchProgressMap(prev => {
+              const next = new Map(prev);
+              next.delete(progress.downloadId);
+              return next;
+            });
+          }, 2000);
+
           if (activeDownloads.current.size === 0) {
             setDownloadStatus('completed');
             toast({ title: "Download complete!", description: "Check your history for completed files." });
+
+            if (appSettings?.auto_reset_on_finish) {
+              setTimeout(() => {
+                handleReset();
+                toast({ title: "Ready for Next Download", description: "Downloader auto-reset completed." });
+              }, 2500);
+            }
           }
         } else if (progress.status === 'paused') {
           activeDownloads.current.delete(progress.downloadId);

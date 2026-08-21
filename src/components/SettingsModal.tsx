@@ -51,8 +51,9 @@ export default function SettingsModal({
           setSettings({
             default_output_path: s.default_output_path || "",
             default_format: s.default_format || "mp4",
-            default_audio_format: s.default_audio_format || "mp3",
+            default_audio_format: s.default_audio_format || "opus",
             embed_thumbnail: s.embed_thumbnail ?? true,
+            auto_reset_on_finish: s.auto_reset_on_finish ?? false,
           });
         }
       });
@@ -189,6 +190,25 @@ export default function SettingsModal({
               checked={settings.embed_thumbnail}
               onCheckedChange={(checked) =>
                 setSettings((prev) => ({ ...prev, embed_thumbnail: checked }))
+              }
+            />
+          </div>
+
+          {/* Auto-Reset Downloader after Download */}
+          <div className="flex items-center justify-between p-3.5 rounded-xl bg-muted/30 border border-border">
+            <div className="space-y-0.5">
+              <Label className="text-xs font-semibold text-foreground cursor-pointer" htmlFor="settings-autoreset">
+                Auto-Reset Downloader
+              </Label>
+              <p className="text-[11px] text-muted-foreground">
+                Automatically clear completed video and prepare URL input for next download.
+              </p>
+            </div>
+            <Switch
+              id="settings-autoreset"
+              checked={settings.auto_reset_on_finish ?? false}
+              onCheckedChange={(checked) =>
+                setSettings((prev) => ({ ...prev, auto_reset_on_finish: checked }))
               }
             />
           </div>
