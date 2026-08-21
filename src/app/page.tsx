@@ -76,6 +76,7 @@ export default function Home() {
   const activeDownloads = useRef<Set<string>>(new Set());
   const unlistenRef = useRef<(() => void) | null>(null);
   const batchManagerRef = useRef<BatchUrlManagerHandle>(null);
+  const downloadOptionsMap = useRef<Map<string, DownloadOptions>>(new Map());
 
   const { toast } = useToast();
 
