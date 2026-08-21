@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ProgressBar } from "@/components/ui/ProgressBar";
-import { Separator } from "@/components/ui/separator";
 import {
   Download,
   Trash2,
@@ -16,10 +15,14 @@ import {
   FileText,
   Sparkles,
   ExternalLink,
+  FolderOpen,
+  Pause,
+  Play,
 } from "lucide-react";
 import {
   getDownloadHistory,
   clearDownloadHistory,
+  openInFileExplorer,
 } from "@/lib/tauri";
 import type { DownloadHistoryItem } from "@/types";
 import { useToast } from "@/hooks/use-toast";
@@ -36,12 +39,16 @@ export interface ActiveDownloadItem {
 interface DownloadsManagerProps {
   activeDownloads: Map<string, ActiveDownloadItem>;
   onCancelActive: (id: string) => void;
+  onPauseActive?: (id: string) => void;
+  onResumeActive?: (id: string) => void;
   refreshTrigger: number;
 }
 
 export default function DownloadsManager({
   activeDownloads,
   onCancelActive,
+  onPauseActive,
+  onResumeActive,
   refreshTrigger,
 }: DownloadsManagerProps) {
   const { toast } = useToast();
@@ -80,6 +87,27 @@ export default function DownloadsManager({
     } catch (err) {
       toast({
         title: "Failed to clear history",
+        description: String(err),
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleOpenFolder = async (path?: string) => {
+    if (!path) {
+      toast({
+        title: "Path unavailable",
+        description: "Output path was not saved for this item.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await openInFileExplorer(path);
+    } catch (err) {
+      toast({
+        title: "Could not open folder",
         description: String(err),
         variant: "destructive",
       });
@@ -129,7 +157,7 @@ export default function DownloadsManager({
               <Download className="h-8 w-8 mx-auto mb-2 opacity-30" />
               <p className="text-xs font-semibold">No active downloads</p>
               <p className="text-[11px] opacity-70">
-                Tasks in progress will appear here with live speed and ETA.
+                Tasks in progress will appear here with live speed, ETA, and controls.
               </p>
             </div>
           ) : (
@@ -138,6 +166,7 @@ export default function DownloadsManager({
                 const isCompleted = item.status === "completed";
                 const isError = item.status.startsWith("error");
                 const isQueued = item.status === "queued";
+                const isPaused = item.status === "paused";
                 const isDownloading = item.status === "downloading";
 
                 return (
@@ -157,8 +186,10 @@ export default function DownloadsManager({
                                 ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
                                 : isError
                                 ? "bg-destructive/10 text-destructive border border-destructive/20"
-                                : isQueued
+                                : isPaused
                                 ? "bg-amber-500/10 text-amber-500 border border-amber-500/20"
+                                : isQueued
+                                ? "bg-blue-500/10 text-blue-500 border border-blue-500/20"
                                 : "bg-primary/10 text-primary border border-primary/20"
                             }`}
                           >
@@ -170,16 +201,45 @@ export default function DownloadsManager({
                         </div>
                       </div>
 
-                      {!isCompleted && !isError && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => onCancelActive(item.downloadId)}
-                          className="h-8 px-2.5 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive rounded-xl shrink-0 font-semibold"
-                        >
-                          <XCircle className="h-3.5 w-3.5 mr-1" /> Stop
-                        </Button>
-                      )}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {/* Pause / Resume Controls */}
+                        {isDownloading && onPauseActive && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onPauseActive(item.downloadId)}
+                            className="h-8 px-2.5 text-xs text-amber-500 hover:bg-amber-500/10 hover:text-amber-600 rounded-xl font-semibold"
+                            title="Pause Download"
+                          >
+                            <Pause className="h-3.5 w-3.5 mr-1" /> Pause
+                          </Button>
+                        )}
+
+                        {isPaused && onResumeActive && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onResumeActive(item.downloadId)}
+                            className="h-8 px-2.5 text-xs text-emerald-500 hover:bg-emerald-500/10 hover:text-emerald-600 rounded-xl font-semibold"
+                            title="Resume Download"
+                          >
+                            <Play className="h-3.5 w-3.5 mr-1" /> Resume
+                          </Button>
+                        )}
+
+                        {/* Stop Control */}
+                        {!isCompleted && !isError && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onCancelActive(item.downloadId)}
+                            className="h-8 px-2.5 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive rounded-xl font-semibold"
+                            title="Cancel / Stop"
+                          >
+                            <XCircle className="h-3.5 w-3.5 mr-1" /> Stop
+                          </Button>
+                        )}
+                      </div>
                     </div>
 
                     <div className="space-y-1">
@@ -194,6 +254,8 @@ export default function DownloadsManager({
                             ? "bg-emerald-500"
                             : isError
                             ? "bg-destructive"
+                            : isPaused
+                            ? "bg-amber-500"
                             : ""
                         }`}
                       />
@@ -245,17 +307,17 @@ export default function DownloadsManager({
               </p>
             </div>
           ) : (
-            <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1 custom-scrollbar">
+            <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1 custom-scrollbar">
               {history.map((item) => {
                 const isAudio = item.format === "audio";
                 return (
                   <div
                     key={item.id}
-                    className="flex items-center justify-between p-3.5 rounded-2xl bg-muted/20 border border-border hover:bg-muted/40 transition-colors gap-3"
+                    className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-2xl bg-muted/20 border border-border hover:bg-muted/40 transition-colors gap-3"
                   >
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
                       <div
-                        className={`p-2 rounded-xl shrink-0 ${
+                        className={`p-2.5 rounded-xl shrink-0 ${
                           isAudio
                             ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
                             : "bg-primary/10 text-primary border border-primary/20"
@@ -268,11 +330,12 @@ export default function DownloadsManager({
                         )}
                       </div>
 
-                      <div className="space-y-0.5 min-w-0 flex-1">
+                      <div className="space-y-1 min-w-0 flex-1">
                         <h4 className="text-xs font-semibold text-foreground truncate" title={item.title}>
                           {item.title}
                         </h4>
-                        <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-mono">
+
+                        <div className="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground font-mono">
                           <span className="uppercase font-bold px-1.5 py-0.2 rounded bg-muted border border-border">
                             {item.format}
                           </span>
@@ -281,20 +344,45 @@ export default function DownloadsManager({
                             <Clock className="h-3 w-3" /> {formatDate(item.timestamp)}
                           </span>
                         </div>
+
+                        {/* File Destination Path */}
+                        {item.outputPath && (
+                          <p
+                            className="text-[10px] font-mono text-muted-foreground/80 truncate max-w-full bg-muted/40 px-2 py-0.5 rounded border border-border/50"
+                            title={item.outputPath}
+                          >
+                            📂 {item.outputPath}
+                          </p>
+                        )}
                       </div>
                     </div>
 
-                    {item.url && (
-                      <a
-                        href={item.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted shrink-0 transition-colors"
-                        title="Open Source Link"
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                      </a>
-                    )}
+                    <div className="flex items-center gap-1 shrink-0 self-end sm:self-center">
+                      {item.outputPath && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleOpenFolder(item.outputPath)}
+                          className="h-8 px-2.5 text-xs text-foreground hover:bg-muted rounded-xl font-medium"
+                          title="Show in File Explorer"
+                        >
+                          <FolderOpen className="h-3.5 w-3.5 mr-1 text-primary" />
+                          <span>Show in Folder</span>
+                        </Button>
+                      )}
+
+                      {item.url && (
+                        <a
+                          href={item.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted shrink-0 transition-colors"
+                          title="Open Source Link"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </a>
+                      )}
+                    </div>
                   </div>
                 );
               })}

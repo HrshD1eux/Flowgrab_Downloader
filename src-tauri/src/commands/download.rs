@@ -287,13 +287,32 @@ pub async fn start_download(
                         },
                     );
 
+                    // Resolve exact output file path for history
+                    let resolved_path = if !final_filename.is_empty() {
+                        let f_path = Path::new(&final_filename);
+                        if f_path.is_absolute() {
+                            final_filename.clone()
+                        } else if !opts_for_history.output_path.trim().is_empty() {
+                            Path::new(&opts_for_history.output_path)
+                                .join(&final_filename)
+                                .to_string_lossy()
+                                .to_string()
+                        } else {
+                            final_filename.clone()
+                        }
+                    } else if !opts_for_history.output_path.trim().is_empty() {
+                        opts_for_history.output_path.clone()
+                    } else {
+                        String::new()
+                    };
+
                     // Save to history (safe persistence guaranteed)
                     let history_item = crate::commands::settings::HistoryItem {
                         id: download_id_for_event.clone(),
                         title: opts_for_history.title.clone(),
                         url: opts_for_history.url.clone(),
                         format: if opts_for_history.is_audio { "audio".to_string() } else { "video".to_string() },
-                        output_path: Some(opts_for_history.output_path.clone()),
+                        output_path: if !resolved_path.is_empty() { Some(resolved_path) } else { None },
                         timestamp: chrono::Utc::now().to_rfc3339(),
                     };
                     let _ = crate::commands::settings::save_history_item(app_handle.clone(), history_item);
@@ -337,11 +356,19 @@ pub async fn cancel_download(
 ) -> Result<(), String> {
     let mut downloads = state.active_downloads.lock().unwrap();
     if let Some(child) = downloads.remove(&download_id) {
-        let child: tauri_plugin_shell::process::CommandChild = child;
-        child.kill().map_err(|e| format!("Failed to kill process: {e}"))?;
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            let pid = child.pid();
+            let _ = std::process::Command::new("taskkill")
+                .args(["/F", "/T", "/PID", &pid.to_string()])
+                .creation_flags(0x08000000)
+                .output();
+        }
+        let _ = child.kill();
         Ok(())
     } else {
-        Err("Download not found".to_string())
+        Err("Download not found or already stopped".to_string())
     }
 }
 

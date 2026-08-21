@@ -99,6 +99,7 @@ pub fn run() {
             commands::settings::save_settings,
             commands::update::get_ytdlp_version,
             commands::update::update_yt_dlp,
+            commands::explorer::open_in_file_explorer,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

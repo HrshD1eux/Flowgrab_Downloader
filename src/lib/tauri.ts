@@ -274,3 +274,9 @@ export async function checkAppUpdate(repo = "HrshD1eux/Video_Downloader"): Promi
         };
     }
 }
+
+/** Reveal a downloaded file or directory in native File Explorer / Finder */
+export async function openInFileExplorer(path: string): Promise<void> {
+    if (!path) return;
+    await invoke<void>("open_in_file_explorer", { path });
+}
