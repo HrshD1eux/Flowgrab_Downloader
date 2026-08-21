@@ -167,18 +167,65 @@ export default function Home() {
     try {
       await cancelDownload(id);
       activeDownloads.current.delete(id);
+      downloadOptionsMap.current.delete(id);
       setBatchProgressMap(prev => {
         const next = new Map(prev);
         const item = next.get(id);
-        if (item) next.set(id, { ...item, status: 'cancelled' });
+        if (item) next.set(id, { ...item, status: 'cancelled', speed: '' });
         return next;
       });
 
       if (activeDownloads.current.size === 0) {
         setDownloadStatus('idle');
       }
+      toast({ title: "Stopped", description: "Download has been stopped." });
     } catch (err) {
-      toast({ title: "Failed to cancel", description: String(err), variant: "destructive" });
+      toast({ title: "Failed to stop", description: String(err), variant: "destructive" });
+    }
+  };
+
+  const handlePauseItem = async (id: string) => {
+    try {
+      await cancelDownload(id);
+      activeDownloads.current.delete(id);
+      setBatchProgressMap(prev => {
+        const next = new Map(prev);
+        const item = next.get(id);
+        if (item) next.set(id, { ...item, status: 'paused', speed: '' });
+        return next;
+      });
+      toast({ title: "Paused", description: "Download has been paused." });
+    } catch (err) {
+      toast({ title: "Failed to pause", description: String(err), variant: "destructive" });
+    }
+  };
+
+  const handleResumeItem = async (id: string) => {
+    const options = downloadOptionsMap.current.get(id);
+    if (!options) {
+      toast({ title: "Cannot resume", description: "Download configuration expired. Please start again.", variant: "destructive" });
+      return;
+    }
+
+    activeDownloads.current.add(id);
+    setBatchProgressMap(prev => {
+      const next = new Map(prev);
+      const item = next.get(id);
+      if (item) next.set(id, { ...item, status: 'downloading', speed: 'Resuming...' });
+      return next;
+    });
+
+    try {
+      await startDownload(id, options);
+    } catch (err) {
+      activeDownloads.current.delete(id);
+      setBatchProgressMap(prev => {
+        const next = new Map(prev);
+        const item = next.get(id);
+        if (item) next.set(id, { ...item, status: 'error', speed: '' });
+        return next;
+      });
+      toast({ title: "Failed to resume", description: String(err), variant: "destructive" });
     }
   };
 
@@ -348,6 +395,8 @@ export default function Home() {
         isAudio: (target as BatchDownloadTarget).isAudio ?? isAudioSelected,
         options: advancedOptions,
       };
+
+      downloadOptionsMap.current.set(downloadId, downloadOptions);
 
       try {
         await startDownload(downloadId, downloadOptions);
@@ -586,6 +635,8 @@ export default function Home() {
             <DownloadsManager
               activeDownloads={batchProgressMap}
               onCancelActive={handleCancelItem}
+              onPauseActive={handlePauseItem}
+              onResumeActive={handleResumeItem}
               refreshTrigger={historyRefreshKey}
             />
           </div>

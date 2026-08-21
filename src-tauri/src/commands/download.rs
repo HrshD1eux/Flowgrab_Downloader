@@ -283,7 +283,7 @@ pub async fn start_download(
                             speed: String::new(),
                             eta: String::new(),
                             status: "completed".to_string(),
-                            filename: final_filename,
+                            filename: final_filename.clone(),
                         },
                     );
 

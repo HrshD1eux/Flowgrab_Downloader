@@ -27,6 +27,7 @@ import {
   type AppUpdateInfo,
 } from "@/lib/tauri";
 import { useToast } from "@/hooks/use-toast";
+import packageJson from "../../package.json";
 
 interface UpdateModalProps {
   open: boolean;
@@ -122,7 +123,7 @@ export default function UpdateModal({ open, onOpenChange }: UpdateModalProps) {
                 <h4 className="text-lg font-bold text-foreground flex items-center gap-2">
                   Video Downloader{" "}
                   <span className="text-xs font-mono px-2 py-0.5 rounded-lg bg-primary/10 text-primary border border-primary/20">
-                    v{appInfo?.currentVersion || "0.1.1"}
+                    v{appInfo?.currentVersion || packageJson.version}
                   </span>
                 </h4>
               </div>
