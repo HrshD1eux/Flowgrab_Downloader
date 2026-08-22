@@ -46,7 +46,23 @@ jobs:
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf ffmpeg
+
+      - name: Setup Linux Sidecar Binaries
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          mkdir -p src-tauri/binaries
+          curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o src-tauri/binaries/yt-dlp-x86_64-unknown-linux-gnu
+          chmod +x src-tauri/binaries/yt-dlp-x86_64-unknown-linux-gnu
+
+      - name: Setup Windows Sidecar Binaries
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "src-tauri/binaries/yt-dlp-x86_64-pc-windows-msvc.exe")) {
+            New-Item -ItemType Directory -Force -Path "src-tauri/binaries"
+            Invoke-WebRequest -Uri "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile "src-tauri/binaries/yt-dlp-x86_64-pc-windows-msvc.exe"
+          }
 
       - name: Install Frontend Dependencies
         run: npm ci
