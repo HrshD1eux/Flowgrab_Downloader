@@ -40,6 +40,7 @@ export type AnalysisResult = {
 export type AdvancedOptions = {
   customFilename: string;
   embedThumbnail: boolean;
+  embedMetadata?: boolean;
   downloadSubtitles: boolean;
   subtitleLanguage: string;
   outputFormat: string;

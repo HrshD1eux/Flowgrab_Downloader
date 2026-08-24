@@ -1,9 +1,11 @@
-# 🚀 Video Downloader
+# 🚀 Video Downloader (v1.1.2)
 
 A modern, high-performance, privacy-first desktop application for downloading videos and audio from virtually any web platform, built with **Tauri v2**, **Next.js 15**, **React 19**, and **yt-dlp**.
 
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-0284c7?style=flat-square)](https://github.com/HrshD1eux/Video_Downloader)
+[![Release](https://img.shields.io/badge/Release-v1.1.2-blue?style=flat-square)](https://github.com/HrshD1eux/Video_Downloader/releases)
 [![Engine](https://img.shields.io/badge/Core-yt--dlp-22d3ee?style=flat-square)](https://github.com/yt-dlp/yt-dlp)
+[![Muxer](https://img.shields.io/badge/Muxer-FFmpeg-emerald?style=flat-square)](https://ffmpeg.org/)
 [![Framework](https://img.shields.io/badge/Framework-Tauri_v2-24c8db?style=flat-square)](https://tauri.app/)
 [![License](https://img.shields.io/badge/License-MIT-emerald?style=flat-square)](README.md#license)
 
@@ -11,22 +13,42 @@ A modern, high-performance, privacy-first desktop application for downloading vi
 
 ## ✨ Key Features
 
+### 🌐 Smart Browser Integration & Auto-Capture
+* **Clipboard Auto-Capture**: When enabled, clicking **Share $\rightarrow$ Copy Link** or copying any media URL (`Ctrl + C`) in Chrome, Brave, Edge, or Firefox immediately loads and analyzes the video inside the app with zero manual pasting.
+* **Smart Consecutive Batch Queueing**: If a video is already loaded, copying subsequent links from your browser **automatically queues them into the Batch Download Manager**, letting you build a multi-video download queue on the fly.
+* **Deep-Link Protocol (`videodownloader://<url>`)**: Supports native OS deep-linking. Use our 1-click browser bookmarklet to send any webpage's video directly to Video Downloader with a single click.
+
 ### 🎬 Universal Video & Audio Support
 * **Complete Resolution Spectrum**: Download at any resolution from **4K Ultra HD (2160p)**, **2K (1440p)**, **1080p Full HD**, **720p HD**, **480p**, down to **360p** and **240p Data Saver**.
-* **Audiophile Codec Options**: Extract high-fidelity audio in **`.opus`** (Best quality-to-size ratio), **`.mp3`** (Universal compatibility, 320kbps), **`.m4a`** (Apple native AAC), **`.flac`** (Lossless studio master), and **`.wav`** (Uncompressed PCM).
-* **Universal Platform Compatibility**: Over 1,000+ supported sites including YouTube, Twitter / X, Instagram, TikTok, Reddit, Facebook, Vimeo, and more.
+* **Audiophile Codec Extraction**: Extract pristine audio in **`.opus`** (Best quality & compression), **`.mp3`** (Universal compatibility, 320kbps), **`.m4a`** (Apple AAC), **`.flac`** (Lossless studio master), and **`.wav`** (Uncompressed PCM).
+* **Metadata & Cover Art Embedding**: Automatically embed complete media tags (Title, Artist, Album, Date, Description) and high-resolution cover artwork directly inside the final `.mp4`, `.mkv`, `.mp3`, or `.m4a` files.
+* **Universal Platform Compatibility**: Over 1,000+ supported sites including YouTube, Twitter / X, Instagram, TikTok, Reddit, Facebook, Vimeo, Twitch, and SoundCloud.
 
-### ⚡ Blazing Performance & Architecture
+### ⚡ Blazing Performance & Process Engine
 * **Single-Pass Extraction**: Fast URL inspection extracting complete video manifests and playlist entries in a single process pass.
 * **Anti-Throttling Engine**: Built-in player client negotiation preventing HTTP 403 Forbidden errors and Cloudflare rate limits.
-* **Controlled Concurrency**: Safe parallel fragment downloads with automatic queue management to protect your connection.
-* **Instant Process Controls**: Responsive Pause, Resume, and Stop controls with clean process tree termination on Windows.
+* **Instant Process Controls**: Responsive Pause, Resume, and Stop controls with clean process tree termination and human-readable error diagnostics.
+* **Persistent Engine Updater**: Direct GitHub binary downloader streaming official standalone `yt-dlp` updates into user AppData, ensuring new engine versions persist permanently across restarts.
 
 ### 🎨 Modern, Performance-Focused UI
 * **Minimalist Slate/Zinc Theme**: Clean, distraction-free interface with instant Dark and Light mode switching.
-* **Dedicated Downloads & History Dashboard**: Real-time progress bars, live transfer speed (`MB/s`), time remaining (`ETA`), exact file destination paths, and a **"Show in Folder"** button.
-* **Full Settings Persistence**: Set default download directories, preferred video container (`mp4`, `mkv`, `webm`), default audio formats, and auto-thumbnail embedding.
-* **Live Update System**: Check for new application releases on GitHub and update the internal extraction engine (`yt-dlp`) with a single click.
+* **Downloads & History Dashboard**: Real-time progress bars, live transfer speed (`MB/s`), time remaining (`ETA`), exact file destination paths, and **"Show in Folder"** navigation.
+* **Full Settings Persistence**: Set default download directories, preferred video containers (`mp4`, `mkv`, `webm`), audio codecs, auto-thumbnail embedding, and auto-reset downloader on finish.
+
+---
+
+## 🚀 1-Click Browser Bookmarklet Setup
+
+You can send any video from Chrome, Brave, Edge, or Firefox directly to Video Downloader with **one click**:
+
+1. Open your browser's **Bookmarks Bar** (`Ctrl + Shift + B`).
+2. Right-click the bar $\rightarrow$ **Add page / Add bookmark**.
+3. Set Name to: `📥 Send to Video Downloader`
+4. Set URL to:
+   ```javascript
+   javascript:window.location.href='videodownloader://' + encodeURIComponent(window.location.href);
+   ```
+5. Whenever you are watching any video on YouTube, Twitter, Instagram, or TikTok, click the bookmark to open it in Video Downloader instantly!
 
 ---
 
@@ -75,15 +97,16 @@ The output installers will be placed in `src-tauri/target/release/bundle/`.
 ```
 Video_Downloader/
 ├── src/                      # Next.js 15 App Router Frontend
-│   ├── app/                  # Layout, globals.css, main page
+│   ├── app/                  # Layout, globals.css, main page & clipboard monitor
 │   ├── components/           # UI components, DownloadsManager, SettingsModal, UpdateModal
 │   └── lib/                  # Tauri IPC bindings & GitHub updater client
 ├── src-tauri/                # Rust Desktop Backend
 │   ├── src/
 │   │   ├── commands/         # download, video analysis, engine resolver, settings, updates, explorer
-│   │   └── lib.rs            # Application state, plugins, tray menu, invoke handler
-│   ├── binaries/             # Bundled yt-dlp & FFmpeg binaries
-│   ├── tauri.conf.json       # Tauri bundle configuration & permissions
+│   │   └── lib.rs            # Application state, plugins, deep-link protocol, tray menu
+│   ├── binaries/             # Bundled yt-dlp sidecar binary
+│   ├── resources/            # Bundled FFmpeg muxing binaries
+│   ├── tauri.conf.json       # Tauri bundle configuration & deep-link schemes
 │   └── Cargo.toml            # Rust dependencies & metadata
 └── package.json              # Frontend scripts & dependencies
 ```
@@ -94,7 +117,7 @@ Video_Downloader/
 
 This application is built on top of incredible open-source technologies and libraries. Sincere gratitude to the developers and maintainers of these projects:
 
-* **[yt-dlp](https://github.com/yt-dlp/yt-dlp)** — The core media extraction engine (Released under the [The Unlicense](https://unlicense.org/)).
+* **[yt-dlp](https://github.com/yt-dlp/yt-dlp)** — The core media extraction engine (Released under [The Unlicense](https://unlicense.org/)).
 * **[FFmpeg](https://ffmpeg.org/)** — The leading multimedia framework for audio extraction, muxing, and video stream conversions (Licensed under [LGPL v2.1+ / GPL v2+](https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html)).
 * **[Tauri](https://tauri.app/)** — Modern framework for building ultra-fast, lightweight desktop binaries with web frontends (Dual-licensed under MIT and Apache 2.0).
 * **[Next.js](https://nextjs.org/)** by [Vercel](https://vercel.com/) — The React framework for high-performance frontend interfaces (Licensed under MIT).

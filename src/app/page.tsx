@@ -18,7 +18,7 @@ import DownloadsManager, { type ActiveDownloadItem } from '@/components/Download
 import SettingsModal from '@/components/SettingsModal';
 import UpdateModal from '@/components/UpdateModal';
 import BatchUrlManager, { BatchDownloadTarget, BatchUrlManagerHandle } from '@/components/BatchUrlManager';
-import { getVideoInfo, startDownload, cancelDownload, onDownloadProgress, openFolderDialog, getSettings, type AppSettings } from '@/lib/tauri';
+import { getVideoInfo, startDownload, cancelDownload, onDownloadProgress, onOpenUrl, openFolderDialog, getSettings, type AppSettings } from '@/lib/tauri';
 import { v4 as uuidv4 } from 'uuid';
 
 const AnalysisSkeleton = () => (
@@ -94,6 +94,7 @@ export default function Home() {
             outputPath: settings.default_output_path || prev.outputPath,
             outputFormat: settings.default_format || prev.outputFormat,
             embedThumbnail: settings.embed_thumbnail ?? prev.embedThumbnail,
+            embedMetadata: settings.embed_metadata ?? true,
           }));
         }
       } catch (err) {
@@ -110,6 +111,7 @@ export default function Home() {
       outputPath: newSettings.default_output_path || prev.outputPath,
       outputFormat: newSettings.default_format || prev.outputFormat,
       embedThumbnail: newSettings.embed_thumbnail ?? prev.embedThumbnail,
+      embedMetadata: newSettings.embed_metadata ?? true,
     }));
   };
 
@@ -285,38 +287,135 @@ export default function Home() {
     }
   }, [url]);
 
-  // Clean up event listener on unmount
-  useEffect(() => {
-    let unlisten: (() => void) | null = null;
+  const lastProcessedUrlRef = useRef<string>('');
 
-    async function setupDragDrop() {
+  const handleProcessIncomingUrl = useCallback(async (incomingUrl: string) => {
+    const cleanUrl = incomingUrl.trim();
+    if (!cleanUrl || cleanUrl === lastProcessedUrlRef.current) return;
+    lastProcessedUrlRef.current = cleanUrl;
+
+    // Check if a primary video is already analyzed or loaded in the app
+    if (analysisResult || url.trim().length > 0) {
+      // Automatic Batch Queueing: Add to Batch Download Queue
+      setBatchTargets(prev => {
+        if (prev.some(t => t.url === cleanUrl)) return prev;
+        const newTarget: BatchDownloadTarget = {
+          title: cleanUrl,
+          url: cleanUrl,
+          formatId: selectedFormat || (isAudioSelected ? (appSettings?.default_audio_format ? `audio-${appSettings.default_audio_format}` : 'audio-best') : (appSettings?.default_format || 'bestvideo+bestaudio/best')),
+          isAudio: isAudioSelected,
+        };
+        return [...prev, newTarget];
+      });
+      setShowBatchManager(true);
+      toast({
+        title: "Added to Batch Queue",
+        description: `Queued consecutive link: ${cleanUrl}`,
+      });
+    } else {
+      // First URL: Load and analyze immediately
+      setUrl(cleanUrl);
+      setIsAnalyzing(true);
+      setAnalysisResult(null);
+      setSelectedFormat(null);
+      setSelectedPlaylistUrls([]);
+      setDownloadStatus('idle');
+      setErrorMessage('');
+      try {
+        const result = await getVideoInfo(cleanUrl);
+        setAnalysisResult(result);
+        if (isAudioSelected) {
+          const defaultAudioCode = appSettings?.default_audio_format || 'opus';
+          const matchedAudio = result.audioFormats.find(f => f.formatId === `audio-${defaultAudioCode}`);
+          setSelectedFormat(matchedAudio ? matchedAudio.formatId : (result.audioFormats[0]?.formatId || 'audio-best'));
+        } else {
+          const defaultRes = appSettings?.default_format || 'mp4';
+          const defaultMatch = result.videoFormats.find(f => f.quality.toLowerCase().includes(defaultRes) || f.ext.toLowerCase() === defaultRes);
+          setSelectedFormat(defaultMatch ? defaultMatch.formatId : (result.videoFormats[0]?.formatId || null));
+        }
+        if (result.isPlaylist && result.entries) {
+          setSelectedPlaylistUrls(result.entries.map(e => e.url));
+        }
+        toast({
+          title: "Link Captured & Analyzed",
+          description: result.title,
+        });
+      } catch (err) {
+        setErrorMessage(String(err));
+        setDownloadStatus('error');
+        toast({
+          title: "Analysis Failed",
+          description: String(err),
+          variant: "destructive",
+        });
+      } finally {
+        setIsAnalyzing(false);
+      }
+    }
+  }, [analysisResult, url, selectedFormat, isAudioSelected, appSettings, toast]);
+
+  // Clean up event listener on unmount & deep link / clipboard handlers
+  useEffect(() => {
+    let unlistenDragDrop: (() => void) | null = null;
+    let unlistenOpenUrl: (() => void) | null = null;
+
+    async function setupListeners() {
       try {
         const { getCurrentWindow } = await import("@tauri-apps/api/window");
         const win = getCurrentWindow();
 
-        const unsubscribe = await win.onDragDropEvent((event) => {
+        unlistenDragDrop = await win.onDragDropEvent((event) => {
           if (event.payload.type === 'drop') {
             const droppedText = event.payload.paths[0];
             if (droppedText && (droppedText.startsWith('http://') || droppedText.startsWith('https://'))) {
-              setUrl(droppedText);
+              handleProcessIncomingUrl(droppedText);
             }
           }
         });
-        unlisten = unsubscribe;
       } catch (e) {
         console.warn("Drag and drop init skipped:", e);
       }
+
+      try {
+        unlistenOpenUrl = await onOpenUrl((incoming) => {
+          handleProcessIncomingUrl(incoming);
+        });
+      } catch (e) {
+        console.warn("Deep link listener skipped:", e);
+      }
     }
 
-    setupDragDrop();
+    setupListeners();
+
+    // Clipboard auto-capture on window focus
+    const checkClipboard = async () => {
+      if (appSettings && appSettings.auto_capture_clipboard === false) return;
+      try {
+        if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.readText) {
+          const clipText = await navigator.clipboard.readText();
+          if (clipText && (clipText.startsWith('http://') || clipText.startsWith('https://'))) {
+            const isMedia = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be|twitter\.com|x\.com|instagram\.com|tiktok\.com|facebook\.com|vimeo\.com|reddit\.com|threads\.net|twitch\.tv|soundcloud\.com)/i.test(clipText.trim());
+            if (isMedia && clipText.trim() !== lastProcessedUrlRef.current) {
+              handleProcessIncomingUrl(clipText.trim());
+            }
+          }
+        }
+      } catch {
+        // Clipboard read permission might be denied or window unfocused
+      }
+    };
+
+    window.addEventListener('focus', checkClipboard);
 
     return () => {
-      if (unlisten) unlisten();
+      if (unlistenDragDrop) unlistenDragDrop();
+      if (unlistenOpenUrl) unlistenOpenUrl();
+      window.removeEventListener('focus', checkClipboard);
       if (unlistenRef.current) {
         unlistenRef.current();
       }
     };
-  }, []);
+  }, [handleProcessIncomingUrl, appSettings]);
 
   const handleAnalyze = async () => {
     if (!url) return;

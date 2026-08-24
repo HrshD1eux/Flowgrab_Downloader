@@ -53,6 +53,8 @@ export default function SettingsModal({
             default_format: s.default_format || "mp4",
             default_audio_format: s.default_audio_format || "opus",
             embed_thumbnail: s.embed_thumbnail ?? true,
+            embed_metadata: s.embed_metadata ?? true,
+            auto_capture_clipboard: s.auto_capture_clipboard ?? true,
             auto_reset_on_finish: s.auto_reset_on_finish ?? false,
           });
         }
@@ -190,6 +192,44 @@ export default function SettingsModal({
               checked={settings.embed_thumbnail}
               onCheckedChange={(checked) =>
                 setSettings((prev) => ({ ...prev, embed_thumbnail: checked }))
+              }
+            />
+          </div>
+
+          {/* Auto-Embed Metadata Default */}
+          <div className="flex items-center justify-between p-3.5 rounded-xl bg-muted/30 border border-border">
+            <div className="space-y-0.5">
+              <Label className="text-xs font-semibold text-foreground cursor-pointer" htmlFor="settings-meta">
+                Auto-Embed Metadata & Tags
+              </Label>
+              <p className="text-[11px] text-muted-foreground">
+                Embed Title, Artist, Album, Date, and Description tags into media files.
+              </p>
+            </div>
+            <Switch
+              id="settings-meta"
+              checked={settings.embed_metadata ?? true}
+              onCheckedChange={(checked) =>
+                setSettings((prev) => ({ ...prev, embed_metadata: checked }))
+              }
+            />
+          </div>
+
+          {/* Auto-Capture Clipboard Links */}
+          <div className="flex items-center justify-between p-3.5 rounded-xl bg-muted/30 border border-border">
+            <div className="space-y-0.5">
+              <Label className="text-xs font-semibold text-foreground cursor-pointer" htmlFor="settings-clipboard">
+                Auto-Capture Browser Links
+              </Label>
+              <p className="text-[11px] text-muted-foreground">
+                Auto-paste copied video links from Chrome, Brave, and Edge when switching to app.
+              </p>
+            </div>
+            <Switch
+              id="settings-clipboard"
+              checked={settings.auto_capture_clipboard ?? true}
+              onCheckedChange={(checked) =>
+                setSettings((prev) => ({ ...prev, auto_capture_clipboard: checked }))
               }
             />
           </div>

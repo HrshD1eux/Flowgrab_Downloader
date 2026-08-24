@@ -149,8 +149,23 @@ export default function AdvancedOptions({
                   Embed Artwork
                 </Label>
               </div>
+
+              <div className="flex items-center space-x-2 bg-muted/20 p-2.5 rounded-xl border border-border">
+                <Checkbox
+                  id="embed-metadata"
+                  checked={options.embedMetadata ?? true}
+                  onCheckedChange={(checked: boolean | "indeterminate") =>
+                    setOptions({ ...options, embedMetadata: checked === true })
+                  }
+                  disabled={isDownloading}
+                />
+                <Label htmlFor="embed-metadata" className="text-xs font-medium cursor-pointer">
+                  Embed Metadata
+                </Label>
+              </div>
+
               {!isAudioSelected && (
-                <div className="flex items-center space-x-2 bg-muted/20 p-2.5 rounded-xl border border-border">
+                <div className="col-span-2 flex items-center space-x-2 bg-muted/20 p-2.5 rounded-xl border border-border">
                   <Checkbox
                     id="download-subtitles"
                     checked={options.downloadSubtitles}

@@ -71,6 +71,8 @@ export interface AppSettings {
     default_format: string;
     default_audio_format: string;
     embed_thumbnail: boolean;
+    embed_metadata?: boolean;
+    auto_capture_clipboard?: boolean;
     auto_reset_on_finish?: boolean;
 }
 
@@ -133,9 +135,19 @@ export async function startDownload(
             custom_filename: options.options.customFilename,
             output_format: options.options.outputFormat,
             embed_thumbnail: options.options.embedThumbnail,
+            embed_metadata: options.options.embedMetadata ?? true,
             download_subtitles: options.options.downloadSubtitles,
             subtitle_language: options.options.subtitleLanguage,
         },
+    });
+}
+
+/** Listen to incoming deep links or browser open-url requests */
+export function onOpenUrl(callback: (url: string) => void): Promise<UnlistenFn> {
+    return listen<string>("app://open-url", (event) => {
+        if (event.payload) {
+            callback(event.payload);
+        }
     });
 }
 

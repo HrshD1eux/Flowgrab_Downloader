@@ -1,6 +1,6 @@
 [package]
 name = "video_downloader"
-version = "1.1.1"
+version = "1.1.2"
 description = "A modern, high-performance desktop video and audio downloader powered by yt-dlp"
 authors = ["HrshD1eux"]
 license = "MIT"

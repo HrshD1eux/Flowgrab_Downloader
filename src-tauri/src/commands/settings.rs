@@ -10,8 +10,12 @@ pub struct AppSettings {
     pub default_format: String,
     #[serde(default = "default_audio_format")]
     pub default_audio_format: String,
-    #[serde(default = "default_embed_thumbnail")]
+    #[serde(default = "default_true")]
     pub embed_thumbnail: bool,
+    #[serde(default = "default_true")]
+    pub embed_metadata: bool,
+    #[serde(default = "default_true")]
+    pub auto_capture_clipboard: bool,
     #[serde(default)]
     pub auto_reset_on_finish: bool,
 }
@@ -24,7 +28,7 @@ fn default_audio_format() -> String {
     "opus".to_string()
 }
 
-fn default_embed_thumbnail() -> bool {
+fn default_true() -> bool {
     true
 }
 
@@ -34,7 +38,9 @@ impl Default for AppSettings {
             default_output_path: String::new(),
             default_format: default_video_format(),
             default_audio_format: default_audio_format(),
-            embed_thumbnail: default_embed_thumbnail(),
+            embed_thumbnail: default_true(),
+            embed_metadata: default_true(),
+            auto_capture_clipboard: true,
             auto_reset_on_finish: false,
         }
     }

@@ -5,7 +5,7 @@ use commands::settings::HistoryItem;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager,
+    AppHandle, Emitter, Manager,
 };
 use tauri_plugin_shell::process::CommandChild;
 
@@ -41,17 +41,57 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec!["--minimized"]),
         ))
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            let _ = app
-                .get_webview_window("main")
-                .expect("no main window")
-                .set_focus();
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+
+                for arg in args {
+                    if arg.starts_with("videodownloader://") || arg.starts_with("videodownloader:") {
+                        let clean = arg
+                            .trim_start_matches("videodownloader://")
+                            .trim_start_matches("videodownloader:")
+                            .trim_matches('"')
+                            .trim();
+                        if !clean.is_empty() {
+                            let _ = window.emit("app://open-url", clean);
+                            break;
+                        }
+                    } else if arg.starts_with("http://") || arg.starts_with("https://") {
+                        let _ = window.emit("app://open-url", arg.trim_matches('"').trim());
+                        break;
+                    }
+                }
+            }
         }))
         .setup(|app| {
             // Initialize in-memory history from disk so history is never lost on restart
             let initial_history = commands::settings::load_initial_history(app.handle());
             let state = app.state::<AppState>();
             *state.download_history.lock().unwrap() = initial_history;
+
+            // Check initial startup args for deep link
+            let cli_args: Vec<String> = std::env::args().collect();
+            for arg in cli_args {
+                if arg.starts_with("videodownloader://") || arg.starts_with("videodownloader:") {
+                    let clean = arg
+                        .trim_start_matches("videodownloader://")
+                        .trim_start_matches("videodownloader:")
+                        .trim_matches('"')
+                        .trim()
+                        .to_string();
+                    if !clean.is_empty() {
+                        let app_handle = app.handle().clone();
+                        tauri::async_runtime::spawn(async move {
+                            tokio::time::sleep(tokio::time::Duration::from_millis(800)).await;
+                            if let Some(w) = app_handle.get_webview_window("main") {
+                                let _ = w.emit("app://open-url", clean);
+                            }
+                        });
+                        break;
+                    }
+                }
+            }
 
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let show_i = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;

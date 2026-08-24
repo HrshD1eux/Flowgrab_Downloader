@@ -16,6 +16,12 @@ pub struct DownloadOptions {
     pub embed_thumbnail: bool,
     pub download_subtitles: bool,
     pub subtitle_language: String,
+    #[serde(default = "default_true")]
+    pub embed_metadata: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -142,6 +148,11 @@ pub fn build_args(_download_id: &str, opts: &DownloadOptions, ffmpeg_dir: &str) 
     // Embed thumbnail
     if opts.embed_thumbnail {
         args.push("--embed-thumbnail".to_string());
+    }
+
+    // Metadata tags
+    if opts.embed_metadata {
+        args.push("--embed-metadata".to_string());
     }
 
     // Subtitles
@@ -472,11 +483,13 @@ mod tests {
             embed_thumbnail: true,
             download_subtitles: false,
             subtitle_language: "en".to_string(),
+            embed_metadata: true,
         };
         let args = build_args("test_id", &opts, "");
         assert!(args.contains(&"-x".to_string()));
         assert!(args.contains(&"--audio-format".to_string()));
         assert!(args.contains(&"opus".to_string()));
+        assert!(args.contains(&"--embed-metadata".to_string()));
         assert!(args.contains(&"--extractor-args".to_string()));
     }
 
@@ -493,12 +506,14 @@ mod tests {
             embed_thumbnail: false,
             download_subtitles: true,
             subtitle_language: "es".to_string(),
+            embed_metadata: true,
         };
         let args = build_args("test_id", &opts, "/usr/bin/ffmpeg");
         assert!(args.contains(&"-f".to_string()));
         assert!(args.contains(&"137+bestaudio/best".to_string()));
         assert!(args.contains(&"--merge-output-format".to_string()));
         assert!(args.contains(&"mp4".to_string()));
+        assert!(args.contains(&"--embed-metadata".to_string()));
         assert!(args.contains(&"--write-sub".to_string()));
         assert!(args.contains(&"es".to_string()));
         assert!(args.contains(&"--ffmpeg-location".to_string()));
