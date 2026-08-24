@@ -31,27 +31,43 @@ pub fn get_ytdlp_command(app: &AppHandle) -> Result<Command, String> {
         .map_err(|e| format!("Failed to resolve yt-dlp sidecar: {e}"))
 }
 
-/// Resolve ffmpeg directory across dev and production environments
+/// Resolve ffmpeg directory across user AppData, bundled resources, and dev environments
 pub fn get_ffmpeg_dir(app: &AppHandle) -> Result<String, String> {
-    let resolver = app.path();
-    let resource_dir = resolver
-        .resource_dir()
-        .map_err(|e| format!("Failed to get resource dir: {e}"))?;
-
-    let mut ffmpeg_dir = resource_dir.clone();
-    ffmpeg_dir.push("resources");
-
     let exe_name = if cfg!(windows) { "ffmpeg.exe" } else { "ffmpeg" };
-    let mut exe_test = ffmpeg_dir.clone();
-    exe_test.push(exe_name);
 
-    if !exe_test.exists() {
-        let mut alt_test = resource_dir.clone();
-        alt_test.push(exe_name);
-        if alt_test.exists() {
-            ffmpeg_dir = resource_dir;
+    // 1. Check user AppData/bin folder first
+    if let Ok(app_data) = app.path().app_data_dir() {
+        let user_bin = app_data.join("bin");
+        if user_bin.join(exe_name).exists() {
+            return Ok(user_bin.to_string_lossy().to_string());
         }
     }
 
-    Ok(ffmpeg_dir.to_string_lossy().to_string())
+    // 2. Check bundled resources directory
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        let resources_sub = resource_dir.join("resources");
+        if resources_sub.join(exe_name).exists() {
+            return Ok(resources_sub.to_string_lossy().to_string());
+        }
+        if resource_dir.join(exe_name).exists() {
+            return Ok(resource_dir.to_string_lossy().to_string());
+        }
+    }
+
+    Ok(String::new())
+}
+
+/// Returns a Command instance for ffmpeg
+pub fn get_ffmpeg_command(app: &AppHandle) -> Result<Command, String> {
+    let ffmpeg_dir = get_ffmpeg_dir(app).unwrap_or_default();
+    let exe_name = if cfg!(windows) { "ffmpeg.exe" } else { "ffmpeg" };
+    if !ffmpeg_dir.is_empty() {
+        let full_path = std::path::Path::new(&ffmpeg_dir).join(exe_name);
+        if full_path.exists() {
+            return Ok(app.shell().command(full_path.to_string_lossy().to_string()));
+        }
+    }
+
+    // Fallback to system ffmpeg command
+    Ok(app.shell().command("ffmpeg"))
 }

@@ -19,11 +19,13 @@ import {
   CheckCircle2,
   ExternalLink,
   Cpu,
+  Layers,
 } from "lucide-react";
 import {
   checkAppUpdate,
   updateYtDlp,
   getYtDlpVersion,
+  getFfmpegVersion,
   type AppUpdateInfo,
 } from "@/lib/tauri";
 import { useToast } from "@/hooks/use-toast";
@@ -38,6 +40,7 @@ export default function UpdateModal({ open, onOpenChange }: UpdateModalProps) {
   const { toast } = useToast();
   const [appInfo, setAppInfo] = useState<AppUpdateInfo | null>(null);
   const [engineVersion, setEngineVersion] = useState<string>("");
+  const [ffmpegVersion, setFfmpegVersion] = useState<string>("");
   const [isCheckingApp, setIsCheckingApp] = useState(false);
   const [isUpdatingEngine, setIsUpdatingEngine] = useState(false);
   const [engineUpdateResult, setEngineUpdateResult] = useState<string>("");
@@ -47,7 +50,12 @@ export default function UpdateModal({ open, onOpenChange }: UpdateModalProps) {
       // Load current yt-dlp version
       getYtDlpVersion()
         .then((v) => setEngineVersion(v))
-        .catch(() => setEngineVersion("Installed"));
+        .catch(() => setEngineVersion("Bundled"));
+
+      // Load FFmpeg version
+      getFfmpegVersion()
+        .then((v) => setFfmpegVersion(v))
+        .catch(() => setFfmpegVersion("FFmpeg Bundled"));
 
       // Check app updates
       handleCheckAppUpdate();
@@ -78,7 +86,7 @@ export default function UpdateModal({ open, onOpenChange }: UpdateModalProps) {
       setEngineVersion(newVer);
       toast({
         title: "Engine Updated",
-        description: result || "yt-dlp has been updated to the latest version.",
+        description: result || "yt-dlp has been updated and saved permanently in AppData.",
       });
     } catch (err) {
       const msg = String(err);
@@ -106,7 +114,7 @@ export default function UpdateModal({ open, onOpenChange }: UpdateModalProps) {
                 Software & Engine Updates
               </DialogTitle>
               <DialogDescription className="text-sm font-medium text-muted-foreground">
-                Check GitHub releases and maintain extraction engines.
+                Check GitHub releases and manage media extraction engines.
               </DialogDescription>
             </div>
           </div>
@@ -201,12 +209,12 @@ export default function UpdateModal({ open, onOpenChange }: UpdateModalProps) {
                 className="rounded-xl h-9 gap-1.5 text-xs font-bold bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30 border border-cyan-500/30 transition-all active:scale-95 shadow-md"
               >
                 <RefreshCw className={`h-3.5 w-3.5 ${isUpdatingEngine ? "animate-spin" : ""}`} />
-                {isUpdatingEngine ? "Updating..." : "Update Engine"}
+                {isUpdatingEngine ? "Downloading..." : "Update Engine"}
               </Button>
             </div>
 
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Updates the internal video extractor definitions directly from official releases so downloads continue working when websites change.
+              Downloads and saves the latest official standalone engine directly to your user AppData so updates persist permanently across restarts.
             </p>
 
             {engineUpdateResult && (
@@ -214,6 +222,30 @@ export default function UpdateModal({ open, onOpenChange }: UpdateModalProps) {
                 {engineUpdateResult}
               </div>
             )}
+          </div>
+
+          <Separator className="bg-white/5" />
+
+          {/* 3. FFmpeg Processing Core Card */}
+          <div className="p-6 rounded-3xl bg-muted/30 border border-white/5 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">
+                  Media Muxing & Encoding
+                </span>
+                <h4 className="text-lg font-bold text-foreground flex items-center gap-2">
+                  <Layers className="h-5 w-5 text-emerald-400" />
+                  FFmpeg Core
+                </h4>
+              </div>
+              <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-xl">
+                <CheckCircle2 className="h-3.5 w-3.5" /> Ready
+              </span>
+            </div>
+
+            <p className="text-xs font-mono text-muted-foreground/80 truncate bg-muted/40 p-2.5 rounded-xl border border-white/5" title={ffmpegVersion}>
+              {ffmpegVersion || "FFmpeg 7.x (High Performance Muxer & Audio Converter)"}
+            </p>
           </div>
         </div>
 

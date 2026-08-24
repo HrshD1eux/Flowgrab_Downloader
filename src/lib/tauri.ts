@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import packageJson from "../../package.json";
 import type {
     AnalysisResult,
     DownloadOptions,
@@ -188,6 +189,11 @@ export async function getYtDlpVersion(): Promise<string> {
     return await invoke<string>('get_ytdlp_version');
 }
 
+/** Get installed FFmpeg version/status */
+export async function getFfmpegVersion(): Promise<string> {
+    return await invoke<string>('get_ffmpeg_version');
+}
+
 /** Get saved settings */
 export async function getSettings(): Promise<AppSettings> {
     return await invoke<AppSettings>("get_settings");
@@ -223,7 +229,7 @@ export interface AppUpdateInfo {
 
 /** Query GitHub Releases API for desktop app updates */
 export async function checkAppUpdate(repo = "HrshD1eux/Video_Downloader"): Promise<AppUpdateInfo> {
-    const currentVersion = "0.1.1";
+    const currentVersion = packageJson.version;
     try {
         const res = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, {
             headers: {
