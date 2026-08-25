@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { ProgressBar } from "@/components/ui/ProgressBar";
 import {
   RefreshCw,
   Sparkles,
@@ -20,12 +21,15 @@ import {
   ExternalLink,
   Cpu,
   Layers,
+  ArrowUpCircle,
 } from "lucide-react";
 import {
   checkAppUpdate,
   updateYtDlp,
   getYtDlpVersion,
   getFfmpegVersion,
+  installAppUpdate,
+  onAppUpdateProgress,
   type AppUpdateInfo,
 } from "@/lib/tauri";
 import { useToast } from "@/hooks/use-toast";
@@ -45,6 +49,10 @@ export default function UpdateModal({ open, onOpenChange }: UpdateModalProps) {
   const [isUpdatingEngine, setIsUpdatingEngine] = useState(false);
   const [engineUpdateResult, setEngineUpdateResult] = useState<string>("");
 
+  const [isInstallingApp, setIsInstallingApp] = useState(false);
+  const [appUpdateProgress, setAppUpdateProgress] = useState(0);
+  const [appUpdateStatusText, setAppUpdateStatusText] = useState("");
+
   useEffect(() => {
     if (open) {
       // Load current yt-dlp version
@@ -63,6 +71,27 @@ export default function UpdateModal({ open, onOpenChange }: UpdateModalProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  // Listen to background in-app download progress
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    if (isInstallingApp) {
+      onAppUpdateProgress((p) => {
+        setAppUpdateProgress(p.percent);
+        if (p.status === "launching" || p.percent >= 100) {
+          setAppUpdateStatusText("Launching installer...");
+        } else {
+          setAppUpdateStatusText(`Downloading update (${Math.round(p.percent)}%)...`);
+        }
+      }).then((fn) => {
+        unlisten = fn;
+      });
+    }
+
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, [isInstallingApp]);
+
   const handleCheckAppUpdate = async () => {
     setIsCheckingApp(true);
     try {
@@ -72,6 +101,29 @@ export default function UpdateModal({ open, onOpenChange }: UpdateModalProps) {
       console.warn("Failed to check app updates:", err);
     } finally {
       setIsCheckingApp(false);
+    }
+  };
+
+  const handleInstallAppUpdate = async () => {
+    if (!appInfo?.downloadUrl) return;
+    setIsInstallingApp(true);
+    setAppUpdateProgress(0);
+    setAppUpdateStatusText("Connecting to release server...");
+
+    try {
+      await installAppUpdate(appInfo.downloadUrl);
+      toast({
+        title: "Installer Launched",
+        description: "The updater is running. The app will close and update automatically.",
+      });
+    } catch (err) {
+      const msg = String(err);
+      setIsInstallingApp(false);
+      toast({
+        title: "In-App Update Failed",
+        description: msg,
+        variant: "destructive",
+      });
     }
   };
 
@@ -139,7 +191,7 @@ export default function UpdateModal({ open, onOpenChange }: UpdateModalProps) {
                 variant="outline"
                 size="sm"
                 onClick={handleCheckAppUpdate}
-                disabled={isCheckingApp}
+                disabled={isCheckingApp || isInstallingApp}
                 className="rounded-xl h-9 gap-1.5 text-xs font-bold border-white/10 hover:bg-muted/50"
               >
                 <RefreshCw className={`h-3.5 w-3.5 ${isCheckingApp ? "animate-spin" : ""}`} />
@@ -151,20 +203,46 @@ export default function UpdateModal({ open, onOpenChange }: UpdateModalProps) {
               <div className="space-y-3 pt-2 border-t border-white/5 text-sm">
                 {appInfo.hasUpdate ? (
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between bg-primary/10 border border-primary/20 p-3 rounded-2xl">
-                      <div className="flex items-center gap-2 text-primary font-bold">
-                        <Sparkles className="h-4 w-4" />
-                        <span>New Release Available: v{appInfo.latestVersion}</span>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-primary/10 border border-primary/20 p-4 rounded-2xl">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2 text-primary font-bold text-sm">
+                          <Sparkles className="h-4 w-4 shrink-0" />
+                          <span>New Release Available: v{appInfo.latestVersion}</span>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                          Automatic 1-click background download and installation.
+                        </p>
                       </div>
-                      <a
-                        href={appInfo.downloadUrl || appInfo.releaseUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1 text-xs font-black uppercase px-3 py-1.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-md"
+
+                      <Button
+                        size="sm"
+                        onClick={handleInstallAppUpdate}
+                        disabled={isInstallingApp}
+                        className="rounded-xl h-9 px-4 gap-1.5 text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-md active:scale-95 shrink-0 w-full sm:w-auto"
                       >
-                        <Download className="h-3.5 w-3.5" /> Download
-                      </a>
+                        {isInstallingApp ? (
+                          <>
+                            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                            Updating...
+                          </>
+                        ) : (
+                          <>
+                            <ArrowUpCircle className="h-3.5 w-3.5" />
+                            Update Now
+                          </>
+                        )}
+                      </Button>
                     </div>
+
+                    {isInstallingApp && (
+                      <div className="space-y-1.5 bg-background/50 p-3 rounded-2xl border border-white/5">
+                        <div className="flex justify-between text-xs font-semibold">
+                          <span className="text-foreground">{appUpdateStatusText}</span>
+                          <span className="text-primary font-mono">{Math.round(appUpdateProgress)}%</span>
+                        </div>
+                        <ProgressBar value={appUpdateProgress} className="h-2 rounded-full" />
+                      </div>
+                    )}
 
                     <div className="space-y-1">
                       <span className="text-xs font-bold text-muted-foreground">Changelog:</span>

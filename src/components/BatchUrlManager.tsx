@@ -39,6 +39,8 @@ export interface BatchDownloadTarget {
 
 export interface BatchUrlManagerHandle {
     analyzeCurrentInput: () => void;
+    addUrl: (url: string) => void;
+    addUrls: (urls: string[]) => void;
 }
 
 interface BatchUrlManagerProps {
@@ -73,37 +75,32 @@ const BatchUrlManager = forwardRef<BatchUrlManagerHandle, BatchUrlManagerProps>(
             onTargetsChange(targets);
         }, [items, defaultFormatId, defaultIsAudio, onTargetsChange]);
 
-        const analyzeUrls = useCallback(async (overrideText?: string) => {
-            const text = overrideText ?? inputText;
-            const rawUrls = text
-                .split("\n")
+        const processUrls = useCallback(async (urlsToAdd: string[]) => {
+            const validUrls = urlsToAdd
                 .map(u => u.trim())
-                .filter(u => u.startsWith("http"));
+                .filter(u => u.startsWith("http") && !items.some(i => i.url === u));
 
-            if (rawUrls.length === 0) return;
+            if (validUrls.length === 0) return;
 
             setIsAnalyzing(true);
-            setInputText("");
 
-            const newPending: BatchVideoItem[] = rawUrls
-                .filter(u => !items.some(i => i.url === u))
-                .map(u => ({
-                    id: crypto.randomUUID(),
-                    url: u,
-                    title: u,
-                    thumbnailUrl: "",
-                    duration: "",
-                    author: "",
-                    isPlaylist: false,
-                    entries: [],
-                    selectedEntryUrls: [],
-                    videoFormats: [],
-                    audioFormats: [],
-                    overrideFormatId: null,
-                    overrideIsAudio: false,
-                    status: "analyzing" as const,
-                    expanded: false,
-                }));
+            const newPending: BatchVideoItem[] = validUrls.map(u => ({
+                id: crypto.randomUUID(),
+                url: u,
+                title: u,
+                thumbnailUrl: "",
+                duration: "",
+                author: "",
+                isPlaylist: false,
+                entries: [],
+                selectedEntryUrls: [],
+                videoFormats: [],
+                audioFormats: [],
+                overrideFormatId: null,
+                overrideIsAudio: false,
+                status: "analyzing" as const,
+                expanded: false,
+            }));
 
             // Add placeholders immediately
             setItems(prev => [...prev, ...newPending]);
@@ -142,14 +139,32 @@ const BatchUrlManager = forwardRef<BatchUrlManagerHandle, BatchUrlManagerProps>(
             });
 
             setIsAnalyzing(false);
-        }, [inputText, items]);
+        }, [items]);
 
-        // Expose analyzeCurrentInput so parent can trigger it
+        const analyzeUrls = useCallback(async (overrideText?: string) => {
+            const text = overrideText ?? inputText;
+            const rawUrls = text
+                .split("\n")
+                .map(u => u.trim())
+                .filter(u => u.startsWith("http"));
+
+            if (rawUrls.length === 0) return;
+            setInputText("");
+            await processUrls(rawUrls);
+        }, [inputText, processUrls]);
+
+        // Expose analyzeCurrentInput and addUrl / addUrls so parent can trigger them
         useImperativeHandle(ref, () => ({
             analyzeCurrentInput: () => {
                 if (inputText.trim()) analyzeUrls();
             },
-        }), [analyzeUrls, inputText]);
+            addUrl: (url: string) => {
+                if (url.trim()) processUrls([url.trim()]);
+            },
+            addUrls: (urls: string[]) => {
+                if (urls.length > 0) processUrls(urls);
+            },
+        }), [analyzeUrls, inputText, processUrls]);
 
         const removeItem = (id: string) => {
             setItems(prev => prev.filter(i => i.id !== id));

@@ -142,6 +142,7 @@ pub fn run() {
             commands::update::get_ytdlp_version,
             commands::update::update_yt_dlp,
             commands::update::get_ffmpeg_version,
+            commands::update::install_app_update,
             commands::explorer::open_in_file_explorer,
         ])
         .run(tauri::generate_context!())

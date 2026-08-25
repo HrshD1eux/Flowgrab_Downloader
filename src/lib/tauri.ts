@@ -301,3 +301,26 @@ export async function openInFileExplorer(path: string): Promise<void> {
     if (!path) return;
     await invoke<void>("open_in_file_explorer", { path });
 }
+
+export interface AppUpdateDownloadProgress {
+    percent: number;
+    bytes_downloaded: number;
+    total_bytes: number;
+    status: string;
+}
+
+/** Download and execute official app update installer in background */
+export async function installAppUpdate(downloadUrl: string): Promise<string> {
+    return await invoke<string>("install_app_update", { downloadUrl });
+}
+
+/** Listen to in-app update download progress */
+export function onAppUpdateProgress(
+    callback: (progress: AppUpdateDownloadProgress) => void
+): Promise<UnlistenFn> {
+    return listen<AppUpdateDownloadProgress>("app-update://progress", (event) => {
+        if (event.payload) {
+            callback(event.payload);
+        }
+    });
+}

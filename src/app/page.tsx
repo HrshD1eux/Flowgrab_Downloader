@@ -297,17 +297,8 @@ export default function Home() {
     // Check if a primary video is already analyzed or loaded in the app
     if (analysisResult || url.trim().length > 0) {
       // Automatic Batch Queueing: Add to Batch Download Queue
-      setBatchTargets(prev => {
-        if (prev.some(t => t.url === cleanUrl)) return prev;
-        const newTarget: BatchDownloadTarget = {
-          title: cleanUrl,
-          url: cleanUrl,
-          formatId: selectedFormat || (isAudioSelected ? (appSettings?.default_audio_format ? `audio-${appSettings.default_audio_format}` : 'audio-best') : (appSettings?.default_format || 'bestvideo+bestaudio/best')),
-          isAudio: isAudioSelected,
-        };
-        return [...prev, newTarget];
-      });
       setShowBatchManager(true);
+      batchManagerRef.current?.addUrl(cleanUrl);
       toast({
         title: "Added to Batch Queue",
         description: `Queued consecutive link: ${cleanUrl}`,
@@ -818,6 +809,7 @@ export default function Home() {
                       downloadProgress={progressMetrics.percent}
                       status={downloadStatus}
                       isFormatSelected={!!selectedFormat || !!analysisResult.isPlaylist || batchTargets.length > 0}
+                      batchCount={batchTargets.length}
                       speed={progressMetrics.speed}
                       eta={progressMetrics.eta}
                       filename={progressMetrics.filename}

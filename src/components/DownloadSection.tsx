@@ -10,6 +10,7 @@ interface DownloadSectionProps {
   downloadProgress: number;
   status: 'idle' | 'downloading' | 'completed' | 'error';
   isFormatSelected: boolean;
+  batchCount?: number;
   speed?: string;
   eta?: string;
   filename?: string;
@@ -24,6 +25,7 @@ export default function DownloadSection({
   downloadProgress,
   status,
   isFormatSelected,
+  batchCount = 0,
   speed,
   eta,
   filename,
@@ -33,7 +35,7 @@ export default function DownloadSection({
 }: DownloadSectionProps) {
 
   const statusText = {
-    idle: 'Ready to download',
+    idle: batchCount > 0 ? `Ready to download (${1 + batchCount} items queued)` : 'Ready to download',
     downloading: `Downloading... ${Math.round(downloadProgress)}%`,
     completed: 'Download completed successfully',
     error: errorMessage || 'An error occurred during download.',
@@ -62,12 +64,12 @@ export default function DownloadSection({
             {isDownloading ? (
               <>
                 <div className="mr-2.5 h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
-                Downloading Media...
+                {batchCount > 0 ? `Downloading All (${1 + batchCount} Items)...` : "Downloading Media..."}
               </>
             ) : (
               <>
                 <Download className="mr-2 h-4 w-4" />
-                Download Now
+                {batchCount > 0 ? `Download All (${1 + batchCount} Videos)` : "Download Now"}
               </>
             )}
           </Button>
