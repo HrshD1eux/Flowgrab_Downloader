@@ -1,4 +1,4 @@
-# 🚀 Video Downloader (v1.1.2)
+# 🚀 Video Downloader
 
 A modern, high-performance, privacy-first desktop application for downloading videos and audio from virtually any web platform, built with **Tauri v2**, **Next.js 15**, **React 19**, and **yt-dlp**.
 
