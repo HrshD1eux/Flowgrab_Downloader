@@ -11,6 +11,22 @@ A modern, high-performance, privacy-first desktop application for downloading vi
 
 ---
 
+## 📸 Screenshots
+
+| ⚡ Main Downloader Interface (Light) | 🎬 4K Stream & Codec Selector |
+| :---: | :---: |
+| ![Main Downloader Interface](screenshots/screenshot1.png) | ![4K Stream & Codec Selector](screenshots/screenshot2.png) |
+
+| 📑 Smart Batch Queue Manager | 📦 Active Downloads & Speed Monitor |
+| :---: | :---: |
+| ![Smart Batch Queue Manager](screenshots/screenshot3.png) | ![Active Downloads Manager](screenshots/screenshot4.png) |
+
+| ✨ 1-Click In-App Background Auto-Updater |
+| :---: |
+| ![1-Click In-App Updater](screenshots/screenshot5.png) |
+
+---
+
 ## ✨ Key Features
 
 ### 🌐 Smart Browser Integration & Auto-Capture
