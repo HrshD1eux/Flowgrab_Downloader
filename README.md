@@ -2,14 +2,14 @@
 
 <img src="docs/icon.png" width="96" height="96" alt="Flowgrab Icon" style="border-radius: 22px; margin-bottom: 12px;" />
 
-# ⚡ Flowgrab Downloader (v1.1.4)
+# ⚡ Flowgrab Downloader (v1.1.5)
 
 **A modern, high-performance, privacy-first desktop application for downloading 4K video, audiophile Opus/FLAC audio, and batch playlists from 1,000+ web platforms.**
 
 </div>
 
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-0284c7?style=flat-square)](https://github.com/HrshD1eux/Flowgrab_Downlaoder)
-[![Release](https://img.shields.io/badge/Release-Flowgrab_v1.1.4-blue?style=flat-square)](https://github.com/HrshD1eux/Flowgrab_Downlaoder/releases)
+[![Release](https://img.shields.io/badge/Release-Flowgrab_v1.1.5-blue?style=flat-square)](https://github.com/HrshD1eux/Flowgrab_Downlaoder/releases)
 [![Core Engine](https://img.shields.io/badge/Core-yt--dlp-22d3ee?style=flat-square)](https://github.com/yt-dlp/yt-dlp)
 [![Muxer](https://img.shields.io/badge/Muxer-FFmpeg_7.x-emerald?style=flat-square)](https://ffmpeg.org/)
 [![Framework](https://img.shields.io/badge/Framework-Tauri_v2-24c8db?style=flat-square)](https://tauri.app/)
@@ -111,8 +111,8 @@ npm run build
 cargo tauri build
 ```
 The output installers will be generated under `src-tauri/target/release/bundle/`:
-* **Windows**: `Flowgrab Downloader_1.1.4_x64-setup.exe` & `Flowgrab Downloader_1.1.4_x64_en-US.msi`
-* **Linux**: `flowgrab_1.1.4_amd64.deb` & `flowgrab_1.1.4_amd64.AppImage`
+* **Windows**: `Flowgrab Downloader_1.1.5_x64-setup.exe` & `Flowgrab Downloader_1.1.5_x64_en-US.msi`
+* **Linux**: `flowgrab_1.1.5_amd64.deb` & `flowgrab_1.1.5_amd64.AppImage`
 
 ---
 
