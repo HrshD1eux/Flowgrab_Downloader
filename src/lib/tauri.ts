@@ -240,7 +240,7 @@ export interface AppUpdateInfo {
 }
 
 /** Query GitHub Releases API for desktop app updates */
-export async function checkAppUpdate(repo = "HrshD1eux/Video_Downloader"): Promise<AppUpdateInfo> {
+export async function checkAppUpdate(repo = "HrshD1eux/Flowgrab_Downloader"): Promise<AppUpdateInfo> {
     const currentVersion = packageJson.version;
     try {
         const res = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, {

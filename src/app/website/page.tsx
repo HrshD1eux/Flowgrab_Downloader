@@ -27,7 +27,7 @@ export default function LandingPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
 
   const currentVer = packageJson.version || "1.1.2";
-  const releaseBaseUrl = "https://github.com/HrshD1eux/Video_Downloader/releases/latest";
+  const releaseBaseUrl = "https://github.com/HrshD1eux/Flowgrab_Downloader/releases/latest";
 
   const screenshots = [
     {
@@ -174,7 +174,7 @@ export default function LandingPage() {
 
           <div className="flex items-center gap-3">
             <a
-              href="https://github.com/HrshD1eux/Video_Downloader"
+              href="https://github.com/HrshD1eux/Flowgrab_Downloader"
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all border border-slate-200"
@@ -539,7 +539,7 @@ export default function LandingPage() {
           <p>© 2026 Flowgrab Downloader. Released under the MIT License.</p>
           <div className="flex items-center gap-6">
             <a
-              href="https://github.com/HrshD1eux/Video_Downloader"
+              href="https://github.com/HrshD1eux/Flowgrab_Downloader"
               target="_blank"
               rel="noreferrer"
               className="hover:text-slate-900 transition-colors"
@@ -547,7 +547,7 @@ export default function LandingPage() {
               GitHub Repository
             </a>
             <a
-              href="https://github.com/HrshD1eux/Video_Downloader/releases"
+              href="https://github.com/HrshD1eux/Flowgrab_Downloader/releases"
               target="_blank"
               rel="noreferrer"
               className="hover:text-slate-900 transition-colors"

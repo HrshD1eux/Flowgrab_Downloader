@@ -2,8 +2,8 @@
 
 A modern, high-performance, privacy-first desktop application for downloading videos, audio, and playlists from virtually any web platform, built with **Tauri v2**, **Next.js 15**, **React 19**, **yt-dlp**, and **FFmpeg**.
 
-[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-0284c7?style=flat-square)](https://github.com/HrshD1eux/Video_Downloader)
-[![Release](https://img.shields.io/badge/Release-Flowgrab_v1.1.2-blue?style=flat-square)](https://github.com/HrshD1eux/Video_Downloader/releases)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-0284c7?style=flat-square)](https://github.com/HrshD1eux/Flowgrab_Downloader)
+[![Release](https://img.shields.io/badge/Release-Flowgrab_v1.1.2-blue?style=flat-square)](https://github.com/HrshD1eux/Flowgrab_Downloader/releases)
 [![Core Engine](https://img.shields.io/badge/Core-yt--dlp-22d3ee?style=flat-square)](https://github.com/yt-dlp/yt-dlp)
 [![Muxer](https://img.shields.io/badge/Muxer-FFmpeg_7.x-emerald?style=flat-square)](https://ffmpeg.org/)
 [![Framework](https://img.shields.io/badge/Framework-Tauri_v2-24c8db?style=flat-square)](https://tauri.app/)
@@ -80,7 +80,7 @@ You can send any video from Chrome, Brave, Edge, or Firefox directly to Flowgrab
 
 ### 1. Clone & Install
 ```bash
-git clone https://github.com/HrshD1eux/Video_Downloader.git
+git clone https://github.com/HrshD1eux/Flowgrab_Downloader.git
 cd Video_Downloader
 npm install
 ```
