@@ -329,7 +329,7 @@ export default function UpdateModal({ open, onOpenChange }: UpdateModalProps) {
 
         <DialogFooter className="pt-4 border-t border-white/5 shrink-0 flex justify-between sm:justify-between items-center w-full">
           <a
-            href="https://github.com/HrshD1eux/Flowgrab_Downloader/releases"
+            href="https://github.com/HrshD1eux/Flowgrab_Downlaoder/releases"
             target="_blank"
             rel="noreferrer"
             className="text-xs text-muted-foreground hover:text-primary transition-colors flex items-center gap-1 font-bold"
