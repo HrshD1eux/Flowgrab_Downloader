@@ -4,8 +4,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from "@/components/ThemeProvider";
 
 export const metadata: Metadata = {
-  title: 'Video Downloader',
-  description: 'A modern, fast, and powerful desktop video and audio downloader powered by yt-dlp.',
+  title: 'Flowgrab — High-Performance Media Downloader',
+  description: 'A modern, fast, and powerful desktop video and audio downloader powered by yt-dlp and FFmpeg.',
 };
 
 export default function RootLayout({

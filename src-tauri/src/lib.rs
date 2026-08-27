@@ -47,7 +47,17 @@ pub fn run() {
                 let _ = window.set_focus();
 
                 for arg in args {
-                    if arg.starts_with("videodownloader://") || arg.starts_with("videodownloader:") {
+                    if arg.starts_with("flowgrab://") || arg.starts_with("flowgrab:") {
+                        let clean = arg
+                            .trim_start_matches("flowgrab://")
+                            .trim_start_matches("flowgrab:")
+                            .trim_matches('"')
+                            .trim();
+                        if !clean.is_empty() {
+                            let _ = window.emit("app://open-url", clean);
+                            break;
+                        }
+                    } else if arg.starts_with("videodownloader://") || arg.starts_with("videodownloader:") {
                         let clean = arg
                             .trim_start_matches("videodownloader://")
                             .trim_start_matches("videodownloader:")
@@ -73,8 +83,14 @@ pub fn run() {
             // Check initial startup args for deep link
             let cli_args: Vec<String> = std::env::args().collect();
             for arg in cli_args {
-                if arg.starts_with("videodownloader://") || arg.starts_with("videodownloader:") {
+                if arg.starts_with("flowgrab://")
+                    || arg.starts_with("flowgrab:")
+                    || arg.starts_with("videodownloader://")
+                    || arg.starts_with("videodownloader:")
+                {
                     let clean = arg
+                        .trim_start_matches("flowgrab://")
+                        .trim_start_matches("flowgrab:")
                         .trim_start_matches("videodownloader://")
                         .trim_start_matches("videodownloader:")
                         .trim_matches('"')

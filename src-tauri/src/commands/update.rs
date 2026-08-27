@@ -146,11 +146,11 @@ pub async fn install_app_update(app: AppHandle, download_url: String) -> Result<
 
     let temp_dir = std::env::temp_dir();
     let file_name = if download_url.ends_with(".msi") {
-        "Video_Downloader_Update_Setup.msi"
+        "Flowgrab_Update_Setup.msi"
     } else if cfg!(windows) {
-        "Video_Downloader_Update_Setup.exe"
+        "Flowgrab_Update_Setup.exe"
     } else {
-        "Video_Downloader_Update.deb"
+        "Flowgrab_Update.deb"
     };
     let installer_path = temp_dir.join(file_name);
 

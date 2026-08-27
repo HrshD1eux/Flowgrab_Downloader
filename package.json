@@ -1,8 +1,8 @@
 {
-  "name": "video-downloader",
+  "name": "flowgrab",
   "version": "1.1.2",
   "private": true,
-  "description": "A modern, high-performance desktop video and audio downloader powered by yt-dlp",
+  "description": "Flowgrab — High-performance desktop video and audio downloader powered by yt-dlp and FFmpeg",
   "scripts": {
     "dev": "next dev -p 9002",
     "build": "next build",

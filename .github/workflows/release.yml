@@ -76,8 +76,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: v__VERSION__
-          releaseName: 'Video Downloader v__VERSION__'
-          releaseBody: 'See the release assets below to download Video Downloader for your operating system.'
+          releaseName: 'Flowgrab Downloader v__VERSION__'
+          releaseBody: 'See the release assets below to download Flowgrab Downloader for Windows (.msi, .exe) and Linux (.deb, .AppImage).'
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
