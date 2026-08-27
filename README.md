@@ -19,17 +19,17 @@
 
 ## 📸 Screenshots
 
-| ⚡ Main Downloader Interface (Light) | 🎬 4K Stream & Codec Selector |
+| ⚡ Home Page (Light Theme) | 📦 Downloads & History Manager |
 | :---: | :---: |
-| ![Main Downloader Interface](screenshots/screenshot1.png) | ![4K Stream & Codec Selector](screenshots/screenshot2.png) |
+| ![Home Page Light Theme](screenshots/screenshot1.png) | ![Downloads & History Manager](screenshots/screenshot2.png) |
 
-| 📑 Smart Batch Queue Manager | 📦 Active Downloads & Speed Monitor |
+| ✨ Software & Engine Updates | ⚙️ Preferences & Settings |
 | :---: | :---: |
-| ![Smart Batch Queue Manager](screenshots/screenshot3.png) | ![Active Downloads Manager](screenshots/screenshot4.png) |
+| ![Software & Engine Updates](screenshots/screenshot3.png) | ![Preferences & Settings](screenshots/screenshot4.png) |
 
-| ✨ 1-Click In-App Background Auto-Updater |
+| 🌙 Dark Theme Interface |
 | :---: |
-| ![1-Click In-App Updater](screenshots/screenshot5.png) |
+| ![Dark Theme Interface](screenshots/screenshot5.png) |
 
 ---
 
