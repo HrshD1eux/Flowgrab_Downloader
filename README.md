@@ -1,6 +1,12 @@
+<div align="center">
+
+<img src="docs/icon.png" width="96" height="96" alt="Flowgrab Icon" style="border-radius: 22px; margin-bottom: 12px;" />
+
 # ⚡ Flowgrab Downloader (v1.1.4)
 
-A modern, high-performance, privacy-first desktop application for downloading videos, audio, and playlists from virtually any web platform, built with **Tauri v2**, **Next.js 15**, **React 19**, **yt-dlp**, and **FFmpeg**.
+**A modern, high-performance, privacy-first desktop application for downloading 4K video, audiophile Opus/FLAC audio, and batch playlists from 1,000+ web platforms.**
+
+</div>
 
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-0284c7?style=flat-square)](https://github.com/HrshD1eux/Flowgrab_Downlaoder)
 [![Release](https://img.shields.io/badge/Release-Flowgrab_v1.1.4-blue?style=flat-square)](https://github.com/HrshD1eux/Flowgrab_Downlaoder/releases)

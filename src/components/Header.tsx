@@ -52,15 +52,23 @@ export default function Header({
   return (
     <div className="flex flex-col md:flex-row justify-between items-center gap-4 border-b border-border pb-5">
       {/* App Branding */}
-      <div className="text-center md:text-left space-y-0.5">
-        <h1 className="text-xl md:text-2xl font-bold tracking-tight text-foreground flex items-center justify-center md:justify-start gap-2">
-          <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent font-black">
-            Flowgrab
-          </span>
-        </h1>
-        <p className="text-xs text-muted-foreground">
-          High-performance stream & media extraction engine.
-        </p>
+      <div className="flex items-center gap-3">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/app-icon.png"
+          alt="Flowgrab Icon"
+          className="w-10 h-10 rounded-2xl shadow-sm border border-border shrink-0 object-contain"
+        />
+        <div className="text-center md:text-left space-y-0.5">
+          <h1 className="text-xl md:text-2xl font-bold tracking-tight text-foreground flex items-center justify-center md:justify-start gap-2">
+            <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent font-black">
+              Flowgrab
+            </span>
+          </h1>
+          <p className="text-xs text-muted-foreground">
+            High-performance stream & media extraction engine.
+          </p>
+        </div>
       </div>
 
       {/* Navigation View Switcher & Action Controls */}
