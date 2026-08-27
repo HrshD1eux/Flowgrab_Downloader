@@ -4,12 +4,45 @@ on:
   push:
     branches:
       - main
-    tags:
-      - 'v*'
   workflow_dispatch:
 
 jobs:
+  prepare:
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Bump Version Dynamically
+        id: bump
+        run: |
+          node scripts/bump.js
+          NEW_VER=$(node -p "require('./package.json').version")
+          echo "version=$NEW_VER" >> $GITHUB_OUTPUT
+          echo "Next Dynamic Release Version: $NEW_VER"
+
+      - name: Commit and Push Bumped Version
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml README.md docs/index.html website/index.html
+          git commit -m "chore(release): bump version to v${{ steps.bump.outputs.version }} [skip ci]" || echo "No changes to commit"
+          git push origin main
+
   release:
+    needs: prepare
     permissions:
       contents: write
     strategy:
@@ -25,6 +58,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Pull Latest Main Commit
+        run: git pull origin main
 
       - name: Install Node.js
         uses: actions/setup-node@v4
@@ -75,9 +113,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: v__VERSION__
-          releaseName: 'Flowgrab Downloader v__VERSION__'
-          releaseBody: 'See the release assets below to download Flowgrab Downloader for Windows (.msi, .exe) and Linux (.deb, .AppImage).'
+          tagName: v${{ needs.prepare.outputs.version }}
+          releaseName: 'Flowgrab Downloader v${{ needs.prepare.outputs.version }}'
+          releaseBody: 'See the release assets below to download Flowgrab Downloader v${{ needs.prepare.outputs.version }} for Windows (.msi, .exe) and Linux (.deb, .AppImage).'
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
