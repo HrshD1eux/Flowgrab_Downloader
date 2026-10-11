@@ -1101,7 +1101,7 @@ dependencies = [
 
 [[package]]
 name = "flowgrab"
-version = "1.1.2"
+version = "1.1.5"
 dependencies = [
  "chrono",
  "futures-util",

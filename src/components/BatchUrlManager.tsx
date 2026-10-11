@@ -105,20 +105,19 @@ const BatchUrlManager = forwardRef<BatchUrlManagerHandle, BatchUrlManagerProps>(
             // Add placeholders immediately
             setItems(prev => [...prev, ...newPending]);
 
-            // Analyze concurrently
-            const results = await Promise.allSettled(newPending.map(p => getVideoInfo(p.url)));
+            // Analyze with worker pool concurrency limit (2 concurrent) and live progressive updates
+            const CONCURRENCY_LIMIT = 2;
+            let cursor = 0;
 
-            setItems(prev => {
-                const next = [...prev];
-                newPending.forEach((pending, idx) => {
-                    const i = next.findIndex(x => x.id === pending.id);
-                    if (i === -1) return;
-                    const result = results[idx];
-                    if (result.status === "fulfilled") {
-                        const r: AnalysisResult = result.value;
+            const runWorker = async () => {
+                while (cursor < newPending.length) {
+                    const idx = cursor++;
+                    const pending = newPending[idx];
+                    try {
+                        const r: AnalysisResult = await getVideoInfo(pending.url);
                         const allEntryUrls = (r.entries ?? []).map(e => e.url);
-                        next[i] = {
-                            ...next[i],
+                        setItems(prev => prev.map(item => item.id === pending.id ? {
+                            ...item,
                             title: r.title,
                             thumbnailUrl: r.thumbnailUrl,
                             duration: r.duration,
@@ -128,15 +127,21 @@ const BatchUrlManager = forwardRef<BatchUrlManagerHandle, BatchUrlManagerProps>(
                             selectedEntryUrls: allEntryUrls,
                             videoFormats: r.videoFormats,
                             audioFormats: r.audioFormats,
-                            status: "ready",
+                            status: "ready" as const,
                             expanded: !!r.isPlaylist && (r.entries?.length ?? 0) > 0,
-                        };
-                    } else {
-                        next[i] = { ...next[i], error: String(result.reason), status: "error" };
+                        } : item));
+                    } catch (err) {
+                        setItems(prev => prev.map(item => item.id === pending.id ? {
+                            ...item,
+                            error: String(err),
+                            status: "error" as const,
+                        } : item));
                     }
-                });
-                return next;
-            });
+                }
+            };
+
+            const workers = Array.from({ length: Math.min(CONCURRENCY_LIMIT, newPending.length) }, () => runWorker());
+            await Promise.all(workers);
 
             setIsAnalyzing(false);
         }, [items]);

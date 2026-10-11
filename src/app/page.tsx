@@ -486,7 +486,17 @@ export default function Home() {
       ...batchTargets,
     ];
 
-    if (allTargets.length === 0) {
+    // De-duplicate targets by URL so no video is accidentally downloaded twice
+    const seenUrls = new Set<string>();
+    const uniqueTargets: { title: string; url: string; formatId: string; isAudio: boolean }[] = [];
+    for (const t of allTargets) {
+      if (!seenUrls.has(t.url)) {
+        seenUrls.add(t.url);
+        uniqueTargets.push(t);
+      }
+    }
+
+    if (uniqueTargets.length === 0) {
       toast({ title: "No videos selected", description: "Please select at least one item to download.", variant: "destructive" });
       return;
     }
@@ -562,7 +572,7 @@ export default function Home() {
       unlistenRef.current = unlisten;
     }
 
-    for (const target of allTargets) {
+    for (const target of uniqueTargets) {
       const downloadId = uuidv4();
       activeDownloads.current.add(downloadId);
 

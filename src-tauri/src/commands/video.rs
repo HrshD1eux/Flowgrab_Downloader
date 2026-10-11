@@ -67,17 +67,31 @@ fn estimate_filesize(bitrate_kbps: f64, duration_secs: f64) -> Option<u64> {
 /// Get video info and available formats from a URL using a single-pass yt-dlp invocation
 #[tauri::command]
 pub async fn get_video_info(app: AppHandle, url: String) -> Result<VideoInfo, String> {
-    // Single-pass extraction with extractor-args for maximum speed and compatibility
+    // Fast single-pass extraction with smart playlist detection
+    let is_explicit_playlist = url.contains("/playlist?list=")
+        || (url.contains("&list=") && !url.contains("watch?v=") && !url.contains("youtu.be/"));
+
+    let mut args = vec![
+        "--dump-single-json".to_string(),
+        "--no-warnings".to_string(),
+        "--no-check-certificates".to_string(),
+        "--no-cache-dir".to_string(),
+        "--socket-timeout".to_string(),
+        "10".to_string(),
+        "--extractor-args".to_string(),
+        "youtube:player_client=android,web".to_string(),
+    ];
+
+    if is_explicit_playlist {
+        args.push("--flat-playlist".to_string());
+    } else {
+        args.push("--no-playlist".to_string());
+    }
+
+    args.push(url.clone());
+
     let output = crate::commands::engine::get_ytdlp_command(&app)?
-        .args([
-            "--dump-single-json",
-            "--flat-playlist",
-            "--no-warnings",
-            "--no-check-certificates",
-            "--extractor-args",
-            "youtube:player_client=android,web,ios",
-            &url,
-        ])
+        .args(args)
         .output()
         .await
         .map_err(|e| format!("Failed to run yt-dlp: {e}"))?;

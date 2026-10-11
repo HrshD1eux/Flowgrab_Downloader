@@ -54,6 +54,16 @@ pub fn get_ffmpeg_dir(app: &AppHandle) -> Result<String, String> {
         }
     }
 
+    // 3. Check system PATH directories
+    if let Some(paths) = std::env::var_os("PATH") {
+        for dir in std::env::split_paths(&paths) {
+            let full_path = dir.join(exe_name);
+            if full_path.is_file() {
+                return Ok(dir.to_string_lossy().to_string());
+            }
+        }
+    }
+
     Ok(String::new())
 }
 

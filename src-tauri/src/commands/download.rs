@@ -63,7 +63,17 @@ pub fn build_args(_download_id: &str, opts: &DownloadOptions, ffmpeg_dir: &str) 
 
     // YouTube extractor args to prevent HTTP 403 Forbidden on video fragment streams
     args.push("--extractor-args".to_string());
-    args.push("youtube:player_client=android,web,ios".to_string());
+    args.push("youtube:player_client=android,web".to_string());
+
+    // Crucial: always enforce --no-playlist so single & batch downloads never fetch entire playlists
+    args.push("--no-playlist".to_string());
+
+    // Socket timeout to prevent hanging on dropped CDN packets
+    args.push("--socket-timeout".to_string());
+    args.push("15".to_string());
+
+    // Prevent cache deadlocks
+    args.push("--no-cache-dir".to_string());
 
     // Safe fragment concurrency
     args.push("-N".to_string());
@@ -183,31 +193,65 @@ pub async fn start_download(
     let app_handle = app.clone();
     let download_id_for_event = download_id.clone();
     let opts_for_history = opts.clone();
+    let semaphore = state.download_semaphore.clone();
 
-    // Check availability and emit queued status if needed
-    if state.download_semaphore.available_permits() == 0 {
-        let _ = app.emit(
-            "download://progress",
-            DownloadProgress {
-                download_id: download_id.clone(),
-                percent: 0.0,
-                speed: "Queued...".to_string(),
-                eta: "".to_string(),
-                status: "queued".to_string(),
-                filename: "".to_string(),
-            },
-        );
-    }
-
-    // Acquire permit (blocks until slot available)
-    let permit = state.download_semaphore.clone().acquire_owned().await
-        .map_err(|e| format!("Failed to acquire download slot: {e}"))?;
+    // 1. Immediately emit queued status so frontend registers it instantly
+    let _ = app.emit(
+        "download://progress",
+        DownloadProgress {
+            download_id: download_id.clone(),
+            percent: 0.0,
+            speed: "Queued...".to_string(),
+            eta: "".to_string(),
+            status: "queued".to_string(),
+            filename: "".to_string(),
+        },
+    );
 
     let ffmpeg_dir = crate::commands::engine::get_ffmpeg_dir(&app).unwrap_or_default();
     let args = build_args(&download_id, &opts, &ffmpeg_dir);
 
+    // 2. Spawn asynchronously so IPC command returns immediately (never blocks frontend batch loop!)
     tokio::spawn(async move {
-        // Hold permit until finished
+        // Pre-check if cancelled while queuing
+        {
+            let state = app_handle.state::<crate::AppState>();
+            let stopped = state.stopped_downloads.lock().unwrap();
+            if stopped.contains_key(&download_id_for_event) {
+                return;
+            }
+        }
+
+        // Acquire permit asynchronously in background worker
+        let permit = match semaphore.acquire_owned().await {
+            Ok(p) => p,
+            Err(e) => {
+                let _ = app_handle.emit(
+                    "download://progress",
+                    DownloadProgress {
+                        download_id: download_id_for_event.clone(),
+                        percent: 0.0,
+                        speed: "".to_string(),
+                        eta: "".to_string(),
+                        status: format!("error: Failed to acquire download slot: {e}"),
+                        filename: "".to_string(),
+                    },
+                );
+                return;
+            }
+        };
+
+        // Post-check if cancelled while waiting for semaphore permit
+        {
+            let state = app_handle.state::<crate::AppState>();
+            let stopped = state.stopped_downloads.lock().unwrap();
+            if stopped.contains_key(&download_id_for_event) {
+                drop(permit);
+                return;
+            }
+        }
+
+        // Hold permit until download process finishes
         let _permit = permit;
 
         let cmd_res = crate::commands::engine::get_ytdlp_command(&app_handle)
@@ -225,7 +269,7 @@ pub async fn start_download(
                                 percent: 0.0,
                                 speed: "".to_string(),
                                 eta: "".to_string(),
-                                status: format!("error: {}", e),
+                                status: format!("error: {e}"),
                                 filename: "".to_string(),
                             },
                         );
@@ -267,6 +311,66 @@ pub async fn start_download(
                                         eta,
                                         status: "downloading".to_string(),
                                         filename,
+                                    },
+                                );
+                            } else if trimmed.contains("[Merger]") || trimmed.contains("Merging formats") {
+                                let _ = app_handle.emit(
+                                    "download://progress",
+                                    DownloadProgress {
+                                        download_id: download_id_for_event.clone(),
+                                        percent: 99.0,
+                                        speed: "Muxing audio & video (FFmpeg)...".to_string(),
+                                        eta: "Processing".to_string(),
+                                        status: "downloading".to_string(),
+                                        filename: final_filename.clone(),
+                                    },
+                                );
+                            } else if trimmed.contains("[ExtractAudio]") {
+                                let _ = app_handle.emit(
+                                    "download://progress",
+                                    DownloadProgress {
+                                        download_id: download_id_for_event.clone(),
+                                        percent: 99.0,
+                                        speed: "Converting audio format (FFmpeg)...".to_string(),
+                                        eta: "Processing".to_string(),
+                                        status: "downloading".to_string(),
+                                        filename: final_filename.clone(),
+                                    },
+                                );
+                            } else if trimmed.contains("[EmbedThumbnail]") {
+                                let _ = app_handle.emit(
+                                    "download://progress",
+                                    DownloadProgress {
+                                        download_id: download_id_for_event.clone(),
+                                        percent: 99.5,
+                                        speed: "Embedding artwork...".to_string(),
+                                        eta: "Processing".to_string(),
+                                        status: "downloading".to_string(),
+                                        filename: final_filename.clone(),
+                                    },
+                                );
+                            } else if trimmed.contains("[Metadata]") {
+                                let _ = app_handle.emit(
+                                    "download://progress",
+                                    DownloadProgress {
+                                        download_id: download_id_for_event.clone(),
+                                        percent: 99.5,
+                                        speed: "Embedding metadata tags...".to_string(),
+                                        eta: "Processing".to_string(),
+                                        status: "downloading".to_string(),
+                                        filename: final_filename.clone(),
+                                    },
+                                );
+                            } else if trimmed.contains("[Fixup") {
+                                let _ = app_handle.emit(
+                                    "download://progress",
+                                    DownloadProgress {
+                                        download_id: download_id_for_event.clone(),
+                                        percent: 99.8,
+                                        speed: "Finalizing file...".to_string(),
+                                        eta: "Processing".to_string(),
+                                        status: "downloading".to_string(),
+                                        filename: final_filename.clone(),
                                     },
                                 );
                             }
@@ -443,10 +547,9 @@ pub async fn cancel_download(
                 .output();
         }
         let _ = child.kill();
-        Ok(())
-    } else {
-        Err("Download not found or already stopped".to_string())
     }
+    // Item is in active or queued status; recorded in stopped_downloads so it terminates or aborts
+    Ok(())
 }
 
 #[cfg(test)]
@@ -489,6 +592,7 @@ mod tests {
         assert!(args.contains(&"-x".to_string()));
         assert!(args.contains(&"--audio-format".to_string()));
         assert!(args.contains(&"opus".to_string()));
+        assert!(args.contains(&"--no-playlist".to_string()));
         assert!(args.contains(&"--embed-metadata".to_string()));
         assert!(args.contains(&"--extractor-args".to_string()));
     }
